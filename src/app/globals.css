@@ -1,0 +1,201 @@
+@import "tailwindcss";
+
+:root {
+  --ice-50: #F4FAFF;
+  --ice-100: #E3F1FF;
+  --sky-200: #BFE0FF;
+  --candy-pink: #FE2D88;
+  --pink-dark: #C2185B;
+  --pink-200: #FFC2DA;
+  --electric-blue: #0C73FE;
+  --deep-blue: #0A2BB5;
+  --deep-blue-dark: #051A7A;
+  --ink: #0B0B14;
+  --white: #FFFFFF;
+  --silver: #DDE6F2;
+  --silver-rim: #C5CACE;
+  --sun: #FFE66B;
+  --success: #16A34A;
+  --error: #E5484D;
+
+  --radius-sm: 14px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --radius-full: 9999px;
+
+  --border-ink: 3px solid #0B0B14;
+  --shadow-card: 0 5px 0 #0B0B14;
+  --shadow-button: 0 4px 0 #0B0B14;
+  --shadow-button-hover: 0 6px 0 #0B0B14;
+  --shadow-button-active: 0 1px 0 #0B0B14;
+}
+
+@theme inline {
+  --color-ice-50: var(--ice-50);
+  --color-ice-100: var(--ice-100);
+  --color-sky-200: var(--sky-200);
+  --color-candy-pink: var(--candy-pink);
+  --color-pink-dark: var(--pink-dark);
+  --color-pink-200: var(--pink-200);
+  --color-electric-blue: var(--electric-blue);
+  --color-deep-blue: var(--deep-blue);
+  --color-deep-blue-dark: var(--deep-blue-dark);
+  --color-ink: var(--ink);
+  --color-white: var(--white);
+  --color-silver: var(--silver);
+  --color-silver-rim: var(--silver-rim);
+  --color-sun: var(--sun);
+  --color-success: var(--success);
+  --color-error: var(--error);
+
+  --font-display: var(--font-display), system-ui, sans-serif;
+  --font-accent: var(--font-accent), serif;
+  --font-body: var(--font-body), system-ui, sans-serif;
+  --font-mono: var(--font-mono), monospace;
+  --font-wordmark: var(--font-wordmark), sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--ice-50);
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  min-height: 100svh;
+  overflow-x: hidden;
+}
+
+/* Tabular nums for all numbers and wallet addresses */
+.tabular-numbers {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono), monospace;
+}
+
+/* Tactical Cartoon Shadows & Borders */
+.border-ink-3 {
+  border: 3px solid var(--ink);
+}
+
+.border-ink-2 {
+  border: 2px solid var(--ink);
+}
+
+.shadow-card {
+  box-shadow: 0 5px 0 var(--ink);
+}
+
+.shadow-button {
+  box-shadow: 0 4px 0 var(--ink);
+}
+
+.shadow-chip {
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+/* Tactical Interactive Press */
+.tactile-button {
+  border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink);
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.12s cubic-bezier(0.2, 0, 0, 1);
+  touch-action: manipulation;
+}
+
+@media (hover: hover) {
+  .tactile-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 var(--ink);
+  }
+}
+
+.tactile-button:active:not(:disabled) {
+  transform: translateY(3px) !important;
+  box-shadow: 0 1px 0 var(--ink) !important;
+}
+
+.tactile-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+/* 3D Coin Preservation */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-style-3d {
+  transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Floating Sticker Animation */
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(3deg);
+  }
+}
+
+@keyframes floatReverse {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(8px) rotate(-3deg);
+  }
+}
+
+@keyframes ticker {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-ticker {
+  animation: ticker 25s linear infinite;
+}
+
+.animate-float-1 {
+  animation: floatSlow 4s ease-in-out infinite;
+}
+
+.animate-float-2 {
+  animation: floatReverse 5s ease-in-out infinite;
+}
+
+.animate-float-3 {
+  animation: floatSlow 3.5s ease-in-out infinite 0.5s;
+}
+
+/* Reduced Motion Override */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-float-1,
+  .animate-float-2,
+  .animate-float-3 {
+    animation: none !important;
+  }
+}
