@@ -45,3 +45,8 @@ next-env.d.ts
 *.db-shm
 *.db-wal
 
+# test profiles
+temp-edge-profile/
+screenshots/
+
+
