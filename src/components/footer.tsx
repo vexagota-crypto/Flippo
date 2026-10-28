@@ -6,9 +6,10 @@ import Image from "next/image";
 import { env } from "@/lib/env";
 import { Copy, Check, ArrowUpRight } from "lucide-react";
 
+const COPYRIGHT_YEAR = 2026;
+
 export function Footer() {
   const [caCopied, setCaCopied] = useState(false);
-  const currentYear = new Date().getFullYear();
 
   const handleCopyCa = () => {
     const ca = env.client.NEXT_PUBLIC_FLIPPO_TOKEN_ADDRESS;
@@ -187,7 +188,7 @@ export function Footer() {
 
         {/* BOTTOM ROW: (c) year, Disclaimer, Privacy, Terms */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] font-mono text-white/70 pt-6 border-t border-white/20">
-          <span>&copy; {currentYear} Flippo Protocol. All rights reserved.</span>
+          <span>&copy; {COPYRIGHT_YEAR} Flippo Protocol. All rights reserved.</span>
           <span className="text-center font-bold text-[#FFE66B]">
             Rewards are not guaranteed &bull; Play responsibly
           </span>
