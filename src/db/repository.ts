@@ -1,6 +1,7 @@
 import { db, sqlite } from "./index";
-import { wallets, flips, ledger, payouts, protocolSettings, auditLog } from "./schema";
-import { eq, desc, and, gte, sql } from "drizzle-orm";
+import { wallets, flips, ledger, payouts, protocolSettings, auditLog, tierFlips, lastTierFlips, practiceFlips, recycleGuardFlags } from "./schema";
+import { eq, desc, and, gte, gt, sql } from "drizzle-orm";
+import { REWARD_CONFIG } from "@/config/rewards";
 
 export interface WalletRecord {
   address: string;
@@ -66,6 +67,24 @@ export interface IRepository {
   setSetting(key: string, value: string): Promise<void>;
   recordAuditLog(adminAddress: string, action: string, details: string): Promise<void>;
   isRewardsPaused(): Promise<boolean>;
+
+  // Tier Gated Flip methods
+  getTierFlips(address: string): Promise<Array<{ tier: number; usedAt: number; flipId: string }>>;
+  getLastTierFlips(address: string, limit?: number): Promise<Array<{ tier: number; usedAt: number; flipId: string }>>;
+  recordTierFlipAtomic(params: {
+    flip: FlipRecord;
+    tier: number;
+    isWhale: boolean;
+    ledgerAmountEth: number;
+    idempotencyKey?: string;
+  }): Promise<{ success: boolean; error?: string }>;
+  getPracticeFlipsCountToday(address: string): Promise<number>;
+  getLastPracticeFlip(address: string): Promise<{ createdAt: number } | null>;
+  recordPracticeFlip(address: string): Promise<{ success: boolean; error?: string }>;
+  getRecycleFlags(): Promise<any[]>;
+  flagRecycleWallet(address: string, reason: string, details?: string): Promise<void>;
+  resolveRecycleFlag(id: string, action: "ban" | "clear"): Promise<void>;
+  backfillTierFlipsFromHistory(): Promise<{ backfilled: number }>;
 }
 
 export class SQLiteRepository implements IRepository {
@@ -107,10 +126,9 @@ export class SQLiteRepository implements IRepository {
     const existing = await this.getOrCreateWallet(addr, newBalance);
     const now = Date.now();
 
-    // If balance has increased or dropped to a different tier, reset or maintain timestamp
     let balanceFirstObservedAt = existing.balanceFirstObservedAt;
     if (newBalance < existing.lastBalance) {
-      // Balance dropped: reset observation timer
+      // Balance dropped below previously observed: reset observation timestamp
       balanceFirstObservedAt = now;
     } else if (newBalance > existing.lastBalance && existing.lastBalance === 0) {
       // First time acquiring tokens
@@ -132,21 +150,16 @@ export class SQLiteRepository implements IRepository {
   async recordFlip(flip: FlipRecord, ledgerAmountEth: number): Promise<void> {
     const addr = flip.walletAddress.toLowerCase();
     const now = Date.now();
-
     const wallet = await this.getOrCreateWallet(addr);
 
-    // Update wallet stats
     const newStreak = flip.calledCorrectly === 1 ? wallet.currentStreak + 1 : 0;
     const bestStreak = Math.max(wallet.bestStreak, newStreak);
     const totalFlips = wallet.totalFlips + 1;
     const totalEarnedEth = Math.round((wallet.totalEarnedEth + ledgerAmountEth) * 1e8) / 1e8;
 
-    // Run in SQLite transaction for append-only idempotency
     const runTx = sqlite.transaction(() => {
-      // Insert flip
       db.insert(flips).values(flip).run();
 
-      // Update wallet
       db.update(wallets)
         .set({
           totalFlips,
@@ -158,7 +171,6 @@ export class SQLiteRepository implements IRepository {
         .where(eq(wallets.address, addr))
         .run();
 
-      // If reward > 0, append to ledger in 'claimable' state
       if (ledgerAmountEth > 0) {
         db.insert(ledger)
           .values({
@@ -178,6 +190,322 @@ export class SQLiteRepository implements IRepository {
     runTx();
   }
 
+  async getTierFlips(address: string): Promise<Array<{ tier: number; usedAt: number; flipId: string }>> {
+    const addr = address.toLowerCase();
+    return db
+      .select({
+        tier: tierFlips.tier,
+        usedAt: tierFlips.usedAt,
+        flipId: tierFlips.flipId,
+      })
+      .from(tierFlips)
+      .where(eq(tierFlips.walletAddress, addr))
+      .all();
+  }
+
+  async getLastTierFlips(address: string, limit = 5): Promise<Array<{ tier: number; usedAt: number; flipId: string }>> {
+    const addr = address.toLowerCase();
+    return db
+      .select({
+        tier: lastTierFlips.tier,
+        usedAt: lastTierFlips.usedAt,
+        flipId: lastTierFlips.flipId,
+      })
+      .from(lastTierFlips)
+      .where(eq(lastTierFlips.walletAddress, addr))
+      .orderBy(desc(lastTierFlips.usedAt))
+      .limit(limit)
+      .all();
+  }
+
+  async recordTierFlipAtomic(params: {
+    flip: FlipRecord;
+    tier: number;
+    isWhale: boolean;
+    ledgerAmountEth: number;
+    idempotencyKey?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const { flip, tier, isWhale, ledgerAmountEth, idempotencyKey } = params;
+    const addr = flip.walletAddress.toLowerCase();
+    const now = Date.now();
+
+    try {
+      const runTx = sqlite.transaction(() => {
+        const wallet = db.select().from(wallets).where(eq(wallets.address, addr)).get();
+        if (!wallet) {
+          throw new Error("Wallet record not found");
+        }
+
+        if (isWhale) {
+          // Check last whale flip timestamp
+          const recentWhaleFlip = db
+            .select()
+            .from(lastTierFlips)
+            .where(eq(lastTierFlips.walletAddress, addr))
+            .orderBy(desc(lastTierFlips.usedAt))
+            .limit(1)
+            .get();
+
+          if (recentWhaleFlip) {
+            const cooldownMs = REWARD_CONFIG.LAST_TIER_COOLDOWN_HOURS * 3600 * 1000;
+            if (now - recentWhaleFlip.usedAt < cooldownMs) {
+              throw new Error("Whale flip is still in 24h cooldown");
+            }
+          }
+
+          // Record whale flip
+          db.insert(lastTierFlips)
+            .values({
+              id: `wflp_${flip.id}`,
+              walletAddress: addr,
+              tier,
+              usedAt: now,
+              flipId: flip.id,
+              ledgerId: ledgerAmountEth > 0 ? `led_${flip.id}` : null,
+              createdAt: now,
+            })
+            .run();
+        } else {
+          // Check if this tier has already been used
+          const existingTierFlip = db
+            .select()
+            .from(tierFlips)
+            .where(and(eq(tierFlips.walletAddress, addr), eq(tierFlips.tier, tier)))
+            .get();
+
+          if (existingTierFlip) {
+            throw new Error(`Reward flip for Tier ${tier} has already been used`);
+          }
+
+          // Record tier flip
+          db.insert(tierFlips)
+            .values({
+              id: `tflp_${flip.id}`,
+              walletAddress: addr,
+              tier,
+              usedAt: now,
+              flipId: flip.id,
+              ledgerId: ledgerAmountEth > 0 ? `led_${flip.id}` : null,
+              createdAt: now,
+            })
+            .run();
+
+          // If SKIPPED_TIER_POLICY is 'forfeit', mark any lower tiers (1 to tier-1) as forfeited so they cannot be reused
+          if (REWARD_CONFIG.SKIPPED_TIER_POLICY === "forfeit") {
+            for (let lower = 1; lower < tier; lower++) {
+              const lowerExists = db
+                .select()
+                .from(tierFlips)
+                .where(and(eq(tierFlips.walletAddress, addr), eq(tierFlips.tier, lower)))
+                .get();
+
+              if (!lowerExists) {
+                db.insert(tierFlips)
+                  .values({
+                    id: `forfeit_${addr}_t${lower}_${now}`,
+                    walletAddress: addr,
+                    tier: lower,
+                    usedAt: now,
+                    flipId: `forfeited_by_${flip.id}`,
+                    ledgerId: null,
+                    createdAt: now,
+                  })
+                  .run();
+              }
+            }
+          }
+        }
+
+        // Insert the flip record
+        db.insert(flips).values(flip).run();
+
+        // Update streaks and stats
+        const newStreak = flip.calledCorrectly === 1 ? wallet.currentStreak + 1 : 0;
+        const bestStreak = Math.max(wallet.bestStreak, newStreak);
+        const totalFlips = wallet.totalFlips + 1;
+        const totalEarnedEth = Math.round((wallet.totalEarnedEth + ledgerAmountEth) * 1e8) / 1e8;
+
+        db.update(wallets)
+          .set({
+            totalFlips,
+            totalEarnedEth,
+            currentStreak: newStreak,
+            bestStreak,
+            updatedAt: now,
+          })
+          .where(eq(wallets.address, addr))
+          .run();
+
+        // Insert ledger entry if reward > 0
+        if (ledgerAmountEth > 0) {
+          db.insert(ledger)
+            .values({
+              id: `led_${flip.id}`,
+              walletAddress: addr,
+              flipId: flip.id,
+              amountEth: ledgerAmountEth,
+              state: "claimable",
+              idempotencyKey: idempotencyKey || `tier_flip_${flip.id}`,
+              createdAt: now,
+              updatedAt: now,
+            })
+            .run();
+        }
+      });
+
+      runTx();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err?.message || "Failed to record tier flip" };
+    }
+  }
+
+  async getPracticeFlipsCountToday(address: string): Promise<number> {
+    const addr = address.toLowerCase();
+    const now = new Date();
+    const startOfDayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+
+    const res = db
+      .select({ count: sql<number>`count(*)` })
+      .from(practiceFlips)
+      .where(and(eq(practiceFlips.walletAddress, addr), gte(practiceFlips.createdAt, startOfDayUtc)))
+      .get();
+
+    return res?.count || 0;
+  }
+
+  async getLastPracticeFlip(address: string): Promise<{ createdAt: number } | null> {
+    const addr = address.toLowerCase();
+    const res = db
+      .select({ createdAt: practiceFlips.createdAt })
+      .from(practiceFlips)
+      .where(eq(practiceFlips.walletAddress, addr))
+      .orderBy(desc(practiceFlips.createdAt))
+      .limit(1)
+      .get();
+
+    return res ? { createdAt: res.createdAt } : null;
+  }
+
+  async recordPracticeFlip(address: string): Promise<{ success: boolean; error?: string }> {
+    const addr = address.toLowerCase();
+    const now = Date.now();
+
+    // Check practice cooldown (15s)
+    const last = await this.getLastPracticeFlip(addr);
+    if (last && now - last.createdAt < REWARD_CONFIG.PRACTICE_COOLDOWN_SECONDS * 1000) {
+      return { success: false, error: "Practice flip cooldown active (15s)" };
+    }
+
+    // Check practice daily cap (20)
+    const count = await this.getPracticeFlipsCountToday(addr);
+    if (count >= REWARD_CONFIG.PRACTICE_MAX_PER_DAY) {
+      return { success: false, error: `Daily practice flip limit (${REWARD_CONFIG.PRACTICE_MAX_PER_DAY}) reached` };
+    }
+
+    db.insert(practiceFlips)
+      .values({
+        id: `prac_${now}_${Math.random().toString(36).slice(2, 6)}`,
+        walletAddress: addr,
+        createdAt: now,
+      })
+      .run();
+
+    return { success: true };
+  }
+
+  async getRecycleFlags(): Promise<any[]> {
+    return db.select().from(recycleGuardFlags).orderBy(desc(recycleGuardFlags.createdAt)).all();
+  }
+
+  async flagRecycleWallet(address: string, reason: string, details?: string): Promise<void> {
+    const now = Date.now();
+    db.insert(recycleGuardFlags)
+      .values({
+        id: `rcy_${now}_${Math.random().toString(36).slice(2, 6)}`,
+        walletAddress: address.toLowerCase(),
+        reason,
+        details: details || null,
+        status: "flagged",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+  }
+
+  async resolveRecycleFlag(id: string, action: "ban" | "clear"): Promise<void> {
+    const now = Date.now();
+    const flag = db.select().from(recycleGuardFlags).where(eq(recycleGuardFlags.id, id)).get();
+    if (!flag) return;
+
+    sqlite.transaction(() => {
+      db.update(recycleGuardFlags)
+        .set({ status: action === "ban" ? "banned" : "cleared", updatedAt: now })
+        .where(eq(recycleGuardFlags.id, id))
+        .run();
+
+      if (action === "ban") {
+        db.update(wallets)
+          .set({ isBanned: 1, updatedAt: now })
+          .where(eq(wallets.address, flag.walletAddress))
+          .run();
+      }
+    })();
+  }
+
+  async backfillTierFlipsFromHistory(): Promise<{ backfilled: number }> {
+    let count = 0;
+    const historyFlips = db
+      .select()
+      .from(flips)
+      .where(and(gt(flips.appliedTier, 0), gt(flips.rewardEth, 0)))
+      .orderBy(flips.createdAt)
+      .all();
+
+    sqlite.transaction(() => {
+      for (const flip of historyFlips) {
+        const addr = flip.walletAddress.toLowerCase();
+        if (flip.appliedTier === REWARD_CONFIG.WHALE_TIER_INDEX) {
+          db.insert(lastTierFlips)
+            .values({
+              id: `mig_w_${flip.id}`,
+              walletAddress: addr,
+              tier: flip.appliedTier,
+              usedAt: flip.createdAt,
+              flipId: flip.id,
+              ledgerId: `led_${flip.id}`,
+              createdAt: flip.createdAt,
+            })
+            .run();
+          count++;
+        } else {
+          const exists = db
+            .select()
+            .from(tierFlips)
+            .where(and(eq(tierFlips.walletAddress, addr), eq(tierFlips.tier, flip.appliedTier)))
+            .get();
+
+          if (!exists) {
+            db.insert(tierFlips)
+              .values({
+                id: `mig_t_${flip.id}`,
+                walletAddress: addr,
+                tier: flip.appliedTier,
+                usedAt: flip.createdAt,
+                flipId: flip.id,
+                ledgerId: `led_${flip.id}`,
+                createdAt: flip.createdAt,
+              })
+              .run();
+            count++;
+          }
+        }
+      }
+    })();
+
+    return { backfilled: count };
+  }
+
   async getWalletFlips(address: string, limit = 20, offset = 0): Promise<FlipRecord[]> {
     const addr = address.toLowerCase();
     return db
@@ -192,10 +520,8 @@ export class SQLiteRepository implements IRepository {
   async getLedgerSummary(address: string): Promise<LedgerSummary> {
     const addr = address.toLowerCase();
     const now = new Date();
-    // Midnight UTC today
     const startOfDayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
 
-    // 1. Flips today by this wallet
     const flipsTodayRes = db
       .select({ count: sql<number>`count(*)` })
       .from(flips)
@@ -203,7 +529,6 @@ export class SQLiteRepository implements IRepository {
       .get();
     const flipsToday = flipsTodayRes?.count || 0;
 
-    // 2. Rewards earned today by this wallet
     const rewardsTodayRes = db
       .select({ sum: sql<number>`coalesce(sum(amount_eth), 0)` })
       .from(ledger)
@@ -211,7 +536,6 @@ export class SQLiteRepository implements IRepository {
       .get();
     const rewardsEarnedTodayEth = Math.round((rewardsTodayRes?.sum || 0) * 1e8) / 1e8;
 
-    // 3. Global rewards earned today across protocol
     const globalRewardsRes = db
       .select({ sum: sql<number>`coalesce(sum(amount_eth), 0)` })
       .from(ledger)
@@ -219,7 +543,6 @@ export class SQLiteRepository implements IRepository {
       .get();
     const globalRewardsEarnedTodayEth = Math.round((globalRewardsRes?.sum || 0) * 1e8) / 1e8;
 
-    // 4. Ledger states breakdown for this wallet
     const claimableRes = db
       .select({ sum: sql<number>`coalesce(sum(amount_eth), 0)` })
       .from(ledger)
@@ -241,7 +564,6 @@ export class SQLiteRepository implements IRepository {
       .get();
     const totalAccruedEth = Math.round((accruedRes?.sum || 0) * 1e8) / 1e8;
 
-    // 5. Last flip timestamp
     const lastFlipRes = db
       .select({ createdAt: flips.createdAt })
       .from(flips)
@@ -266,7 +588,6 @@ export class SQLiteRepository implements IRepository {
     const addr = address.toLowerCase();
     const now = Date.now();
 
-    // Find claimable entries for this wallet
     const claimableEntries = db
       .select()
       .from(ledger)
@@ -283,7 +604,6 @@ export class SQLiteRepository implements IRepository {
     const payoutId = `pay_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
     const runClaimTx = sqlite.transaction(() => {
-      // Create payout record
       db.insert(payouts)
         .values({
           id: payoutId,
@@ -296,7 +616,6 @@ export class SQLiteRepository implements IRepository {
         })
         .run();
 
-      // Transition ledger rows to 'accrued' pointing to this payoutId
       for (const entry of claimableEntries) {
         db.update(ledger)
           .set({
@@ -334,13 +653,11 @@ export class SQLiteRepository implements IRepository {
         .run();
 
       if (status === "confirmed") {
-        // Mark all ledger entries for this payout as 'paid'
         db.update(ledger)
           .set({ state: "paid", updatedAt: now })
           .where(eq(ledger.payoutId, payoutId))
           .run();
       } else if (status === "failed") {
-        // Rollback ledger entries to 'claimable' so the user can claim again
         db.update(ledger)
           .set({ state: "claimable", payoutId: null, updatedAt: now })
           .where(eq(ledger.payoutId, payoutId))
@@ -380,7 +697,6 @@ export class SQLiteRepository implements IRepository {
         .limit(limit);
     }
 
-    // Filter by timestamp for 24h or 7d
     const now = Date.now();
     const periodMs = timeFrame === "24h" ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
     const since = now - periodMs;

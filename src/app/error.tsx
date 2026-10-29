@@ -13,6 +13,21 @@ export default function ErrorPage({
 }) {
   useEffect(() => {
     console.error("App boundary error:", error);
+
+    // If ChunkLoadError or stale deployment chunk, automatically reload page once
+    const isChunkError =
+      error?.name === "ChunkLoadError" ||
+      error?.message?.includes("Loading chunk") ||
+      error?.message?.includes("Failed to fetch dynamically imported module");
+
+    if (isChunkError && typeof window !== "undefined") {
+      const storageKey = "flippo_chunk_reload";
+      const lastReload = sessionStorage.getItem(storageKey);
+      if (!lastReload) {
+        sessionStorage.setItem(storageKey, "1");
+        window.location.reload();
+      }
+    }
   }, [error]);
 
   return (
@@ -36,7 +51,12 @@ export default function ErrorPage({
         <Button
           variant="pink"
           size="md"
-          onClick={() => reset()}
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              sessionStorage.removeItem("flippo_chunk_reload");
+            }
+            reset();
+          }}
           className="font-black px-6"
         >
           Try Again

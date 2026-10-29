@@ -1,3 +1,5 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+patchedDependencies:
+  '@privy-io/react-auth@3.51.0': patches/@privy-io__react-auth@3.51.0.patch

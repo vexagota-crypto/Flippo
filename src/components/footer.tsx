@@ -169,19 +169,8 @@ export function Footer() {
           FLIP THE COIN 🪙
         </Link>
 
-        {/* GIANT WORDMARK WITH PEEKING COIN STICKER */}
+        {/* GIANT WORDMARK */}
         <div className="relative w-full flex justify-center items-end select-none pt-4 pb-0 -mb-6 sm:-mb-12 overflow-hidden">
-          {/* Peeking Coin Sticker */}
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 -translate-y-2 z-10 w-16 h-16 sm:w-24 sm:h-24">
-            <Image
-              src="/assets/coin-heads.png"
-              alt="Peeking coin"
-              width={96}
-              height={96}
-              className="object-contain filter drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)] animate-float-1"
-            />
-          </div>
-
           <div className="font-wordmark text-[17vw] leading-[0.75] font-black text-white/95 tracking-tighter uppercase pointer-events-none select-none text-center truncate">
             flippo
           </div>

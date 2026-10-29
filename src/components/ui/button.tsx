@@ -33,7 +33,7 @@ const sizeStyles: Record<ButtonSize, string> = {
   sm: "h-9 px-3 text-xs rounded-[14px]",
   md: "min-h-[44px] h-11 px-5 text-sm font-bold rounded-[20px]",
   lg: "min-h-[56px] h-14 px-8 text-lg font-extrabold rounded-[28px]",
-  pill: "min-h-[44px] h-10 px-5 text-sm font-bold rounded-full",
+  pill: "h-10 px-4 text-xs font-bold rounded-full",
   icon: "min-h-[44px] min-w-[44px] h-11 w-11 p-0 rounded-[14px] flex items-center justify-center",
 };
 

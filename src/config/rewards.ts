@@ -4,7 +4,10 @@ export interface MultiplierTier {
   minTokens: number;
   multiplier: number;
   description: string;
+  isWhale?: boolean;
 }
+
+export type SkippedTierPolicy = "forfeit" | "allow";
 
 export const REWARD_CONFIG = {
   // Base Reward per flip in ETH
@@ -13,59 +16,80 @@ export const REWARD_CONFIG = {
   // Multiplier awarded when user correctly predicts Heads / Tails
   CALL_BONUS_MULTIPLIER: 1.5,
 
-  // Multiplier tiers based on $FLIPPO token holdings (with hard cap at Tier 5)
+  // Multiplier tiers based on $FLIPPO token holdings
   TIERS: [
     {
       tier: 0,
       name: "No Holding",
       minTokens: 0,
       multiplier: 0,
-      description: "Below minimum hold (flip for fun, 0x reward)",
+      description: "Below minimum hold (practice only, 0x reward)",
+      isWhale: false,
     },
     {
       tier: 1,
       name: "Bronze Flipper",
       minTokens: 1_000,
       multiplier: 1.0,
-      description: "1,000 $FLIPPO: Standard 1x reward",
+      description: "1,000 $FLIPPO: 1x standard reward (1 flip per tier)",
+      isWhale: false,
     },
     {
       tier: 2,
       name: "Silver Flipper",
       minTokens: 10_000,
       multiplier: 1.5,
-      description: "10,000 $FLIPPO: 1.5x reward boost",
+      description: "10,000 $FLIPPO: 1.5x reward boost (1 flip per tier)",
+      isWhale: false,
     },
     {
       tier: 3,
       name: "Gold Flipper",
       minTokens: 50_000,
       multiplier: 2.0,
-      description: "50,000 $FLIPPO: 2x double reward",
+      description: "50,000 $FLIPPO: 2x double reward (1 flip per tier)",
+      isWhale: false,
     },
     {
       tier: 4,
       name: "Platinum Whale",
       minTokens: 200_000,
       multiplier: 3.0,
-      description: "200,000 $FLIPPO: 3x triple reward",
+      description: "200,000 $FLIPPO: 3x triple reward (1 flip per tier)",
+      isWhale: false,
     },
     {
       tier: 5,
-      name: "Diamond Flippo (Hard Cap)",
+      name: "Diamond Whale",
       minTokens: 1_000_000,
       multiplier: 5.0,
-      description: "1,000,000 $FLIPPO: 5x maximum hard cap",
+      description: "1,000,000 $FLIPPO: 5x maximum privilege (1 flip every 24h)",
+      isWhale: true,
     },
   ] as MultiplierTier[],
+
+  // Whale tier index
+  WHALE_TIER_INDEX: 5,
+
+  // Policy when a wallet skips tiers by making a large buy:
+  // "forfeit" (default): skipped lower tiers are locked and forfeited; only the highest tier flip is available.
+  // "allow": lower tiers can still be redeemed.
+  SKIPPED_TIER_POLICY: "forfeit" as SkippedTierPolicy,
+
+  // Whale tier rolling cooldown in hours
+  LAST_TIER_COOLDOWN_HOURS: 24,
 
   // Hold-time rule: must maintain balance at or above tier for MIN_HOLD_HOURS to unlock tier
   MIN_HOLD_HOURS: 24,
 
-  // Cooldown between flips per wallet in seconds
+  // Practice flips config
+  PRACTICE_COOLDOWN_SECONDS: 15,
+  PRACTICE_MAX_PER_DAY: 20,
+
+  // General cooldown between flips in seconds
   COOLDOWN_SECONDS: 30,
 
-  // Maximum flips per wallet per UTC day
+  // Maximum flips per wallet per day
   MAX_FLIPS_PER_WALLET_PER_DAY: 10,
 
   // Maximum ETH rewards a single wallet can earn per UTC day
@@ -89,6 +113,14 @@ export function getTierByBalance(tokenBalance: number): MultiplierTier {
     }
   }
   return REWARD_CONFIG.TIERS[0];
+}
+
+/**
+ * Returns the next higher tier, or null if already at max (Whale tier)
+ */
+export function getNextTier(currentTierNumber: number): MultiplierTier | null {
+  const next = REWARD_CONFIG.TIERS.find((t) => t.tier === currentTierNumber + 1);
+  return next || null;
 }
 
 /**

@@ -1,35 +1,8 @@
-import { Bricolage_Grotesque, Instrument_Serif, Inter, Geist_Mono, Archivo } from "next/font/google";
+// Robust offline-safe font definitions
+// In production, fonts are loaded via CSS @import with system fallbacks
 
-export const bricolage = Bricolage_Grotesque({
-  subsets: ["latin"],
-  weight: ["700", "800"],
-  variable: "--font-display",
-  display: "swap",
-});
-
-export const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["italic"],
-  variable: "--font-accent",
-  display: "swap",
-});
-
-export const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-body",
-  display: "swap",
-});
-
-export const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
-
-export const archivo = Archivo({
-  subsets: ["latin"],
-  weight: ["900"],
-  variable: "--font-wordmark",
-  display: "swap",
-});
+export const bricolage = { variable: "font-display" };
+export const instrumentSerif = { variable: "font-accent" };
+export const inter = { variable: "font-body" };
+export const geistMono = { variable: "font-mono" };
+export const archivo = { variable: "font-wordmark" };

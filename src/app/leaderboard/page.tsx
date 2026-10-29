@@ -4,23 +4,43 @@ import React, { useState, useEffect } from "react";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Surface } from "@/components/ui/surface";
-import { Trophy, Flame, Sparkles } from "lucide-react";
+import { Trophy, Flame, Sparkles, RotateCw } from "lucide-react";
 
 export default function LeaderboardPage() {
   const [tab, setTab] = useState<"rewards" | "streak">("rewards");
   const [timeFrame, setTimeFrame] = useState<"24h" | "7d" | "all">("all");
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchLeaderboard = () => {
     setLoading(true);
-    fetch(`/api/leaderboard?by=${tab}&timeFrame=${timeFrame}&limit=50`)
+    setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    fetch(`/api/leaderboard?by=${tab}&timeFrame=${timeFrame}&limit=50`, {
+      signal: controller.signal,
+    })
       .then((res) => res.json())
       .then((res) => {
-        if (res.success) setData(res.data);
+        clearTimeout(timeoutId);
+        if (res.success) {
+          setData(res.data);
+        } else {
+          setError(res.error || "Failed to load rankings");
+        }
       })
-      .catch(() => {})
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        setError(err.name === "AbortError" ? "Request timed out" : "Could not load rankings");
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchLeaderboard();
   }, [tab, timeFrame]);
 
   return (
@@ -87,6 +107,21 @@ export default function LeaderboardPage() {
               </div>
             )}
           </div>
+
+          {/* Error & Retry */}
+          {error && (
+            <div className="p-3 bg-[#FFF0F5] border-2 border-[#FE2D88] rounded-[16px] flex items-center justify-between text-xs font-mono">
+              <span className="text-[#C2185B] font-bold">{error}</span>
+              <button
+                type="button"
+                onClick={fetchLeaderboard}
+                className="px-2.5 py-1 bg-[#FE2D88] text-white font-bold rounded-lg flex items-center gap-1 active:scale-95 cursor-pointer"
+              >
+                <RotateCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
 
           {/* Rows */}
           <div className="flex flex-col gap-2.5">

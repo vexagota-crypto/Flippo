@@ -4,7 +4,9 @@ import * as schema from "./schema";
 import path from "path";
 import fs from "fs";
 
-const dbPath = process.env.DATABASE_URL || path.join(process.cwd(), "flippo.db");
+const dbPath =
+  process.env.DATABASE_URL ||
+  (process.env.VERCEL ? path.join("/tmp", "flippo.db") : path.join(process.cwd(), "flippo.db"));
 
 // Ensure directory exists
 const dbDir = path.dirname(dbPath);
@@ -49,6 +51,43 @@ sqlite.exec(`
     reward_eth REAL NOT NULL,
     no_reward_reason TEXT,
     created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS tier_flips (
+    id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    tier INTEGER NOT NULL,
+    used_at INTEGER NOT NULL,
+    flip_id TEXT NOT NULL,
+    ledger_id TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE(wallet_address, tier)
+  );
+
+  CREATE TABLE IF NOT EXISTS last_tier_flips (
+    id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    tier INTEGER NOT NULL,
+    used_at INTEGER NOT NULL,
+    flip_id TEXT NOT NULL,
+    ledger_id TEXT,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS practice_flips (
+    id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS recycle_guard_flags (
+    id TEXT PRIMARY KEY,
+    wallet_address TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    details TEXT,
+    status TEXT NOT NULL DEFAULT 'flagged',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS ledger (

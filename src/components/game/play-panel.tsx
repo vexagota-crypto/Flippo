@@ -5,16 +5,17 @@ import Image from "next/image";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Surface } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
+import { ConnectButton } from "@/components/connect-button";
 import { robinhoodChain } from "@/lib/chains";
 import confetti from "canvas-confetti";
 import {
   Sparkles,
-  Flame,
   Award,
   Clock,
   AlertCircle,
-  ExternalLink,
   CheckCircle2,
+  Zap,
+  RotateCw,
 } from "lucide-react";
 
 interface PlayPanelProps {
@@ -28,19 +29,21 @@ export function PlayPanel({
   onFlipComplete,
   isFlipping,
 }: PlayPanelProps) {
-  const { login, authenticated, getAccessToken, user } = usePrivy();
+  const { authenticated, getAccessToken, user } = usePrivy();
   const { wallets } = useWallets();
   const activeWallet = wallets[0] || (user?.wallet?.address ? { address: user.wallet.address } : null);
 
   const [selectedCall, setSelectedCall] = useState<"heads" | "tails">("heads");
   const [stats, setStats] = useState<any>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
   const [flipResult, setFlipResult] = useState<any>(null);
   const [animatedReward, setAnimatedReward] = useState<number>(0);
   const [isClaiming, setIsClaiming] = useState(false);
   const [claimSuccess, setClaimSuccess] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cooldownRemaining, setCooldownRemaining] = useState<number>(0);
+  const [whaleCountdown, setWhaleCountdown] = useState<number>(0);
 
   // Check wrong network
   const currentChainId = activeWallet && "chainId" in activeWallet && activeWallet.chainId
@@ -48,21 +51,36 @@ export function PlayPanel({
     : robinhoodChain.id;
   const isWrongNetwork = authenticated && currentChainId !== robinhoodChain.id;
 
-  // Fetch user stats
+  // Fetch user stats with 8-second AbortController timeout
   const fetchStats = async () => {
     if (!activeWallet?.address) return;
     setIsLoadingStats(true);
+    setStatsError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
-      const res = await fetch(`/api/user-stats?address=${activeWallet.address}`);
+      const res = await fetch(`/api/flip-status?address=${activeWallet.address}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (data.success) {
         setStats(data);
-        if (data.cooldownSecondsLeft > 0) {
-          setCooldownRemaining(data.cooldownSecondsLeft);
+        if (data.whaleCountdownSeconds > 0) {
+          setWhaleCountdown(data.whaleCountdownSeconds);
         }
+      } else {
+        setStatsError(data.error || "Failed to load stats");
       }
-    } catch (err) {
-      console.error("Failed to load user stats:", err);
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        setStatsError("Network request timed out. Tap retry.");
+      } else {
+        setStatsError("Could not load stats. Check connection.");
+      }
     } finally {
       setIsLoadingStats(false);
     }
@@ -89,6 +107,21 @@ export function PlayPanel({
     return () => clearInterval(timer);
   }, [cooldownRemaining]);
 
+  // Whale countdown timer
+  useEffect(() => {
+    if (whaleCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setWhaleCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [whaleCountdown]);
+
   // Reward counting up animation
   useEffect(() => {
     if (!flipResult?.rewardEth || flipResult.rewardEth <= 0) {
@@ -110,13 +143,27 @@ export function PlayPanel({
     return () => clearInterval(interval);
   }, [flipResult]);
 
-  // Execute Flip
-  const handleFlip = async () => {
-    if (!authenticated || isFlipping || cooldownRemaining > 0 || isWrongNetwork) return;
+  // Format seconds to Xh Ym
+  const formatCountdown = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
+  // Execute Flip (Real or Practice)
+  const handleFlip = async (isPractice = false) => {
+    if (!authenticated || isFlipping || isWrongNetwork) return;
+    if (!isPractice && !stats?.isRewardFlipAvailable) return;
 
     setErrorMessage(null);
     setFlipResult(null);
     onFlipStart();
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
       const token = await getAccessToken();
@@ -132,11 +179,15 @@ export function PlayPanel({
       const res = await fetch("/api/flip", {
         method: "POST",
         headers,
+        signal: controller.signal,
         body: JSON.stringify({
           call: selectedCall,
+          isPractice,
+          idempotencyKey: `flip_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         }),
       });
 
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       if (!res.ok || !data.success) {
@@ -147,11 +198,10 @@ export function PlayPanel({
       setTimeout(() => {
         onFlipComplete(data.flip.result);
         setFlipResult(data.flip);
-        setCooldownRemaining(30);
         fetchStats();
 
-        // Confetti burst on correct calls!
-        if (data.flip.calledCorrectly) {
+        // Confetti burst on correct calls (reward flips)
+        if (data.flip.calledCorrectly && !isPractice) {
           const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
           if (!prefersReduced) {
             confetti({
@@ -164,8 +214,9 @@ export function PlayPanel({
         }
       }, 1400);
     } catch (err: any) {
+      clearTimeout(timeoutId);
       console.error("Flip error:", err);
-      setErrorMessage(err?.message || "Failed to complete flip.");
+      setErrorMessage(err?.name === "AbortError" ? "Flip request timed out. Please retry." : err?.message || "Failed to complete flip.");
       onFlipComplete("heads");
     }
   };
@@ -176,6 +227,9 @@ export function PlayPanel({
     setIsClaiming(true);
     setClaimSuccess(null);
     setErrorMessage(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     try {
       const token = await getAccessToken();
@@ -191,8 +245,10 @@ export function PlayPanel({
       const res = await fetch("/api/claim", {
         method: "POST",
         headers,
+        signal: controller.signal,
       });
 
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Claim failed");
@@ -201,33 +257,25 @@ export function PlayPanel({
       setClaimSuccess(`Claim broadcasted! TX: ${data.txHash.slice(0, 8)}...`);
       fetchStats();
     } catch (err: any) {
-      setErrorMessage(err?.message || "Failed to claim rewards");
+      clearTimeout(timeoutId);
+      setErrorMessage(err?.name === "AbortError" ? "Claim request timed out. Please retry." : err?.message || "Failed to claim rewards");
     } finally {
       setIsClaiming(false);
     }
   };
 
-  // Disabled reason computation
-  let disabledReason: string | null = null;
-  if (isWrongNetwork) {
-    disabledReason = "Please switch to Robinhood Chain";
-  } else if (cooldownRemaining > 0) {
-    disabledReason = `Cooldown active (${cooldownRemaining}s)`;
-  } else if (stats && stats.flipsToday >= stats.maxFlipsPerDay) {
-    disabledReason = `Daily flip limit reached (${stats.flipsToday}/${stats.maxFlipsPerDay})`;
-  } else if (stats && stats.rewardsEarnedTodayEth >= stats.walletDailyCapEth) {
-    disabledReason = `Daily reward cap reached (${stats.rewardsEarnedTodayEth} ETH)`;
-  } else if (stats && stats.isRewardsPaused) {
-    disabledReason = "Protocol rewards currently paused";
-  } else if (stats && !stats.holdTimeMet && stats.currentTier === 0) {
-    disabledReason = `Hold time active: ${stats.hoursRemaining}h remaining for multiplier`;
-  }
+  const isRewardFlipReady = !!stats?.isRewardFlipAvailable;
+  const currentTier = stats?.rawTier?.tier || 0;
+  const currentMultiplier = stats?.rawTier?.multiplier || 1.0;
+  const nextTier = stats?.nextTier;
+  const practiceRemaining = stats?.practice?.remainingToday ?? 20;
+  const practiceCooldown = stats?.practice?.cooldownSecondsLeft ?? 0;
 
   return (
     <Surface
       tone="white"
       radius="xl"
-      className="w-full max-w-lg p-5 sm:p-7 bg-white border-[3px] border-[#0B0B14] shadow-[0_6px_0_#0B0B14] flex flex-col gap-5 select-none transition-all"
+      className="w-full max-w-lg p-4 sm:p-6 bg-white border-[3px] border-[#0B0B14] shadow-[0_6px_0_#0B0B14] flex flex-col gap-4 select-none transition-all"
     >
       {/* 1. NOT CONNECTED STATE */}
       {!authenticated ? (
@@ -246,14 +294,9 @@ export function PlayPanel({
             </p>
           </div>
 
-          <Button
-            variant="pink"
-            size="lg"
-            onClick={() => login()}
-            className="w-full text-base font-black shadow-[0_5px_0_#0B0B14]"
-          >
-            Connect Wallet to Play
-          </Button>
+          <div className="w-full">
+            <ConnectButton fullWidth size="lg" label="Connect Wallet to Play" />
+          </div>
 
           <p className="text-[11px] font-mono text-[#0B0B14]/60">
             🔒 Safe & zero-risk: no approvals or spending transactions are ever requested.
@@ -261,53 +304,151 @@ export function PlayPanel({
         </div>
       ) : (
         /* 2. CONNECTED PLAY STATE */
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3.5">
           {/* Header Stats Bar */}
-          <div className="grid grid-cols-3 gap-2 p-2 bg-[#F4FAFF] border-2 border-[#0B0B14] rounded-[20px] text-center">
+          <div className="grid grid-cols-3 gap-2 p-2.5 bg-[#F4FAFF] border-2 border-[#0B0B14] rounded-[20px] text-center">
             {/* Holdings & Tier */}
-            <div className="flex flex-col items-center justify-center p-1.5 border-r-2 border-[#0B0B14]/15">
+            <div className="flex flex-col items-center justify-center p-1 border-r-2 border-[#0B0B14]/15">
               <span className="text-[10px] font-mono uppercase text-[#0B0B14]/60">
                 Holdings
               </span>
-              <span className="font-mono text-xs font-extrabold text-[#0B0B14] truncate">
+              <span className="font-mono text-xs font-extrabold text-[#0B0B14] truncate max-w-[90px]">
                 {stats?.tokenBalance !== undefined ? stats.tokenBalance.toLocaleString() : "..."}
               </span>
               <span className="text-[10px] font-mono font-bold text-[#0C73FE]">
-                {stats?.multiplier !== undefined ? `${stats.multiplier}x Multiplier` : "..."}
+                {stats?.rawTier ? `Tier ${stats.rawTier.tier} (${stats.rawTier.multiplier}x)` : "..."}
               </span>
             </div>
 
-            {/* Today's Flips */}
-            <div className="flex flex-col items-center justify-center p-1.5 border-r-2 border-[#0B0B14]/15">
+            {/* Hold Time Status */}
+            <div className="flex flex-col items-center justify-center p-1 border-r-2 border-[#0B0B14]/15">
               <span className="text-[10px] font-mono uppercase text-[#0B0B14]/60">
-                Flips Today
+                Hold Time
               </span>
               <span className="font-mono text-xs font-extrabold text-[#0B0B14]">
-                {stats?.flipsToday !== undefined
-                  ? `${stats.flipsToday} of ${stats.maxFlipsPerDay}`
-                  : "..."}
+                {stats?.holdTime?.met ? (
+                  <span className="text-[#16A34A]">✓ Verified</span>
+                ) : (
+                  <span className="text-[#FE2D88]">{stats?.holdTime?.hoursRemaining}h left</span>
+                )}
               </span>
-              <span className="text-[10px] font-mono text-[#16A34A] font-bold">
-                {stats?.maxFlipsPerDay && stats?.flipsToday !== undefined
-                  ? `${Math.max(0, stats.maxFlipsPerDay - stats.flipsToday)} left`
-                  : ""}
+              <span className="text-[10px] font-mono text-[#0B0B14]/60">
+                24h required
               </span>
             </div>
 
-            {/* Next Reward Estimate */}
-            <div className="flex flex-col items-center justify-center p-1.5">
+            {/* Practice Flips */}
+            <div className="flex flex-col items-center justify-center p-1">
               <span className="text-[10px] font-mono uppercase text-[#0B0B14]/60">
-                Next Win
+                Practice Flips
               </span>
-              <span className="font-mono text-xs font-extrabold text-[#FE2D88]">
-                {stats?.nextRewardEstimate !== undefined
-                  ? `~${stats.nextRewardEstimate} ETH`
-                  : "..."}
+              <span className="font-mono text-xs font-extrabold text-[#0B0B14]">
+                {stats?.practice?.remainingToday !== undefined ? `${stats.practice.remainingToday}/20` : "..."}
               </span>
               <span className="text-[10px] font-mono text-[#0B0B14]/60">
-                with Call Bonus
+                free today
               </span>
             </div>
+          </div>
+
+          {/* STATS ERROR RETRY BAR */}
+          {statsError && (
+            <div className="p-2.5 bg-[#FFF0F5] border-2 border-[#FE2D88] rounded-[16px] flex items-center justify-between text-xs font-mono text-[#0B0B14]">
+              <span className="text-[#C2185B] font-bold">{statsError}</span>
+              <button
+                type="button"
+                onClick={fetchStats}
+                disabled={isLoadingStats}
+                className="px-2.5 py-1 bg-[#FE2D88] text-white font-bold rounded-lg flex items-center gap-1 active:scale-95 cursor-pointer"
+              >
+                <RotateCw className={`w-3 h-3 ${isLoadingStats ? "animate-spin" : ""}`} />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
+
+          {/* EXACT E3 TIER STATUS CARD */}
+          <div className="p-3 rounded-[18px] border-2 border-[#0B0B14] bg-[#FFF9E6] shadow-[0_2px_0_#0B0B14]">
+            {stats?.tierState === "AVAILABLE" && (
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A] animate-pulse shrink-0" />
+                <span className="text-xs font-mono font-extrabold text-[#0B0B14]">
+                  Tier {currentTier} ({currentMultiplier}x) reward flip ready!
+                </span>
+              </div>
+            )}
+
+            {stats?.tierState === "WHALE_READY" && (
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#16A34A] animate-pulse shrink-0" />
+                <span className="text-xs font-mono font-extrabold text-[#0B0B14]">
+                  👑 Whale flip ready (5x daily privilege)!
+                </span>
+              </div>
+            )}
+
+            {stats?.tierState === "WHALE_COOLDOWN" && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#0C73FE] shrink-0" />
+                <span className="text-xs font-mono font-bold text-[#0B0B14]">
+                  Whale flip used. Next whale flip in {formatCountdown(whaleCountdown)}.
+                </span>
+              </div>
+            )}
+
+            {stats?.tierState === "TIER_USED" && (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 text-xs font-mono font-bold text-[#0B0B14]">
+                  <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0" />
+                  <span>Tier {currentTier} flip used.</span>
+                </div>
+                {nextTier ? (
+                  <span className="text-[11px] font-mono text-[#0B0B14]/80">
+                    Hold <strong>{nextTier.tokensNeeded.toLocaleString()}</strong> more $FLIPPO to unlock Tier {nextTier.tier} ({nextTier.multiplier}x).
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-mono text-[#0B0B14]/80">
+                    You have unlocked and redeemed all standard tiers!
+                  </span>
+                )}
+              </div>
+            )}
+
+            {stats?.tierState === "HOLDING_FOR_ELIGIBILITY" && (
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-[#FE2D88] shrink-0" />
+                <span className="text-xs font-mono font-bold text-[#0B0B14]">
+                  Holding for eligibility: {stats.holdTime.hoursRemaining}h left until Tier {currentTier} unlocks.
+                </span>
+              </div>
+            )}
+
+            {stats?.tierState === "BELOW_MIN" && (
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#0C73FE] shrink-0" />
+                <span className="text-xs font-mono font-bold text-[#0B0B14]">
+                  Hold 1,000 $FLIPPO to start earning reward flips. Practice flips available below!
+                </span>
+              </div>
+            )}
+
+            {stats?.tierState === "BUDGET_REACHED" && (
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#FE2D88] shrink-0" />
+                <span className="text-xs font-mono font-bold text-[#0B0B14]">
+                  Daily reward budget reached. Resets at 00:00 UTC. Practice flips available!
+                </span>
+              </div>
+            )}
+
+            {stats?.tierState === "TREASURY_LOW" && (
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[#FE2D88] shrink-0" />
+                <span className="text-xs font-mono font-bold text-[#0B0B14]">
+                  Treasury rewards currently paused. Practice flips available below!
+                </span>
+              </div>
+            )}
           </div>
 
           {/* HEADS / TAILS CALL TOGGLE */}
@@ -364,36 +505,48 @@ export function PlayPanel({
             </div>
           </div>
 
-          {/* GIANT FLIP BUTTON */}
-          <div className="flex flex-col gap-1.5 mt-1">
+          {/* ACTION BUTTONS (PRIMARY REWARD FLIP + SECONDARY PRACTICE FLIP) */}
+          <div className="flex flex-col gap-2 mt-1">
+            {/* Primary Reward Flip Button */}
             <Button
               variant="pink"
               size="lg"
-              disabled={isFlipping || cooldownRemaining > 0 || isWrongNetwork}
-              onClick={handleFlip}
-              className="w-full text-xl font-black min-h-[58px] h-15 shadow-[0_5px_0_#0B0B14] active:translate-y-1 relative overflow-hidden"
+              disabled={isFlipping || !isRewardFlipReady || isWrongNetwork}
+              onClick={() => handleFlip(false)}
+              className="w-full text-lg font-black min-h-[56px] h-14 shadow-[0_4px_0_#0B0B14] active:translate-y-1 relative overflow-hidden"
             >
               {isFlipping ? (
                 <span className="flex items-center gap-2">
-                  <span className="animate-spin text-2xl">🪙</span>
+                  <span className="animate-spin text-xl">🪙</span>
                   <span>Flipping...</span>
                 </span>
-              ) : cooldownRemaining > 0 ? (
-                <span className="flex items-center gap-2 font-mono">
-                  <Clock className="w-5 h-5 animate-pulse" />
-                  <span>Cooldown ({cooldownRemaining}s)</span>
+              ) : isRewardFlipReady ? (
+                <span className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 fill-current" />
+                  <span>FLIP FOR REWARD ({currentMultiplier}x)</span>
                 </span>
               ) : (
-                <span>FLIP COIN</span>
+                <span>REWARD FLIP UNAVAILABLE</span>
               )}
             </Button>
 
-            {/* Small reason notice for disabled states */}
-            {disabledReason && (
-              <div className="flex items-center justify-center gap-1.5 text-center text-xs font-mono font-bold text-[#E5484D] mt-0.5">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span>{disabledReason}</span>
-              </div>
+            {/* Secondary Practice Flip Button */}
+            {(!isRewardFlipReady || stats?.tierState === "TIER_USED" || stats?.tierState === "BELOW_MIN" || stats?.tierState === "HOLDING_FOR_ELIGIBILITY") && (
+              <Button
+                variant="white"
+                size="lg"
+                disabled={isFlipping || practiceRemaining <= 0 || practiceCooldown > 0}
+                onClick={() => handleFlip(true)}
+                className="w-full text-sm font-extrabold min-h-[56px] h-14 bg-[#F4FAFF] hover:bg-white border-[3px] border-[#0B0B14] shadow-[0_3px_0_#0B0B14]"
+              >
+                {practiceCooldown > 0 ? (
+                  <span>Practice Cooldown ({practiceCooldown}s)</span>
+                ) : practiceRemaining > 0 ? (
+                  <span>Practice Flip (No reward • {practiceRemaining} left)</span>
+                ) : (
+                  <span>Practice Limit Reached (20/20)</span>
+                )}
+              </Button>
             )}
           </div>
 
@@ -412,20 +565,30 @@ export function PlayPanel({
                         : "bg-[#0B0B14]/10 text-[#0B0B14]"
                     }`}
                   >
-                    {flipResult.calledCorrectly ? "🎯 Correct Call! (+1.5x)" : "Wrong Call (Base Paid)"}
+                    {flipResult.isPractice
+                      ? flipResult.calledCorrectly ? "🎯 Correct! (Practice)" : "Wrong (Practice)"
+                      : flipResult.calledCorrectly ? "🎯 Correct Call! (+1.5x Bonus)" : "Wrong Call (Base Paid)"}
                   </span>
                 </div>
               </div>
 
               {/* Reward Count Up */}
-              <div className="flex items-center justify-between pt-1 border-t border-[#0B0B14]/10">
-                <span className="text-xs font-mono text-[#0B0B14]/70">Reward Earned:</span>
-                <span className="font-mono text-base font-black text-[#FE2D88]">
-                  +{animatedReward} ETH
-                </span>
-              </div>
+              {!flipResult.isPractice && (
+                <div className="flex items-center justify-between pt-1 border-t border-[#0B0B14]/10">
+                  <span className="text-xs font-mono text-[#0B0B14]/70">Reward Earned:</span>
+                  <span className="font-mono text-base font-black text-[#FE2D88]">
+                    +{animatedReward} ETH
+                  </span>
+                </div>
+              )}
 
-              {flipResult.noRewardReason && (
+              {flipResult.isPractice && (
+                <div className="text-[11px] font-mono text-[#0B0B14]/70 pt-1 border-t border-[#0B0B14]/10">
+                  🎮 Practice flip completed! No real ETH distributed.
+                </div>
+              )}
+
+              {flipResult.noRewardReason && !flipResult.isPractice && (
                 <div className="text-[11px] font-mono text-[#E5484D] bg-white p-2 rounded-[12px] border border-[#0B0B14]/20">
                   ⚠️ Flip completed with 0 ETH reward: {flipResult.noRewardReason}
                 </div>
@@ -434,7 +597,7 @@ export function PlayPanel({
           )}
 
           {/* CLAIM REWARDS SECTION */}
-          {stats && stats.totalClaimableEth >= stats.minClaimThresholdEth && (
+          {stats && stats.totalClaimableEth >= 0.001 && (
             <div className="p-3.5 bg-[#FFE66B]/30 border-2 border-[#0B0B14] rounded-[20px] flex items-center justify-between gap-3">
               <div>
                 <span className="text-[10px] font-mono uppercase text-[#0B0B14]/70 block">
@@ -449,7 +612,7 @@ export function PlayPanel({
                 size="sm"
                 isLoading={isClaiming}
                 onClick={handleClaim}
-                className="px-4 text-xs font-black"
+                className="px-4 text-xs font-black min-h-[44px]"
               >
                 Claim to Wallet
               </Button>

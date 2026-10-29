@@ -6,7 +6,8 @@ import { Footer } from "@/components/footer";
 import { Surface } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
 import { useWallets } from "@privy-io/react-auth";
-import { ShieldCheck, History as HistoryIcon, CheckCircle2, XCircle, X } from "lucide-react";
+import { Z_INDEX } from "@/styles/z-index";
+import { ShieldCheck, History as HistoryIcon, CheckCircle2, XCircle, X, RotateCw } from "lucide-react";
 
 export default function HistoryPage() {
   const { wallets } = useWallets();
@@ -14,25 +15,41 @@ export default function HistoryPage() {
 
   const [flips, setFlips] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [verifyingFlip, setVerifyingFlip] = useState<any>(null);
   const [verifyResult, setVerifyResult] = useState<any>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
-  useEffect(() => {
+  const fetchHistory = () => {
     setLoading(true);
+    setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     const url = activeWallet?.address
       ? `/api/history?address=${activeWallet.address}&limit=50`
       : `/api/history?limit=30`;
 
-    fetch(url)
+    fetch(url, { signal: controller.signal })
       .then((res) => res.json())
       .then((data) => {
+        clearTimeout(timeoutId);
         if (data.success) {
           setFlips(data.flips);
+        } else {
+          setError(data.error || "Failed to load flips");
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        clearTimeout(timeoutId);
+        setError(err.name === "AbortError" ? "Request timed out" : "Could not load flips");
+      })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchHistory();
   }, [activeWallet?.address]);
 
   const handleVerify = async (flip: any) => {
@@ -40,10 +57,14 @@ export default function HistoryPage() {
     setIsVerifying(true);
     setVerifyResult(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const res = await fetch("/api/fairness/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           serverSeed: flip.serverSeed,
           seedHash: flip.seedHash,
@@ -53,9 +74,11 @@ export default function HistoryPage() {
         }),
       });
 
+      clearTimeout(timeoutId);
       const data = await res.json();
       setVerifyResult(data.verification);
     } catch (e) {
+      clearTimeout(timeoutId);
       console.error(e);
     } finally {
       setIsVerifying(false);
@@ -99,6 +122,20 @@ export default function HistoryPage() {
               {flips.length} flips
             </span>
           </div>
+
+          {error && (
+            <div className="p-3 bg-[#FFF0F5] border-2 border-[#FE2D88] rounded-[16px] flex items-center justify-between text-xs font-mono">
+              <span className="text-[#C2185B] font-bold">{error}</span>
+              <button
+                type="button"
+                onClick={fetchHistory}
+                className="px-2.5 py-1 bg-[#FE2D88] text-white font-bold rounded-lg flex items-center gap-1 active:scale-95 cursor-pointer"
+              >
+                <RotateCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+                <span>Retry</span>
+              </button>
+            </div>
+          )}
 
           {loading ? (
             <div className="py-16 text-center font-mono text-xs text-[#0B0B14]/50">
@@ -162,7 +199,7 @@ export default function HistoryPage() {
                         variant="white"
                         size="sm"
                         onClick={() => handleVerify(flip)}
-                        className="text-[11px] font-mono font-bold px-3 py-1 h-8"
+                        className="text-[11px] font-mono font-bold px-3 py-1 h-8 cursor-pointer"
                       >
                         <ShieldCheck className="w-3.5 h-3.5 mr-1 text-[#0C73FE]" />
                         Verify
@@ -178,7 +215,10 @@ export default function HistoryPage() {
 
       {/* VERIFICATION MODAL */}
       {verifyingFlip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+        <div
+          className="fixed inset-0 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs"
+          style={{ zIndex: Z_INDEX.modal }}
+        >
           <Surface
             tone="white"
             radius="xl"
@@ -270,7 +310,7 @@ export default function HistoryPage() {
               variant="white"
               size="md"
               onClick={() => setVerifyingFlip(null)}
-              className="w-full mt-2"
+              className="w-full mt-2 cursor-pointer"
             >
               Close
             </Button>

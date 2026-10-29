@@ -6,29 +6,39 @@ import { Footer } from "@/components/footer";
 import { Surface } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
 import { usePrivy } from "@privy-io/react-auth";
-import { Shield, Pause, Play, Ban, RefreshCw, AlertTriangle } from "lucide-react";
+import { Shield, Pause, Play, Ban, RefreshCw, RotateCw, AlertTriangle } from "lucide-react";
 
 export default function AdminPage() {
   const { getAccessToken, authenticated } = usePrivy();
   const [adminData, setAdminData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [banAddress, setBanAddress] = useState("");
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const fetchAdminData = async () => {
     setLoading(true);
+    setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const token = await getAccessToken();
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
-      const res = await fetch("/api/admin", { headers });
+      const res = await fetch("/api/admin", { headers, signal: controller.signal });
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (data.success) {
         setAdminData(data.data);
+      } else {
+        setError(data.error || "Failed to load admin data");
       }
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      clearTimeout(timeoutId);
+      setError(e.name === "AbortError" ? "Request timed out" : "Failed to load admin data");
     } finally {
       setLoading(false);
     }
@@ -107,6 +117,20 @@ export default function AdminPage() {
           </div>
         )}
 
+        {error && (
+          <div className="p-3 bg-[#FFF0F5] border-2 border-[#FE2D88] rounded-[16px] flex items-center justify-between text-xs font-mono">
+            <span className="text-[#C2185B] font-bold">{error}</span>
+            <button
+              type="button"
+              onClick={fetchAdminData}
+              className="px-2.5 py-1 bg-[#FE2D88] text-white font-bold rounded-lg flex items-center gap-1 active:scale-95"
+            >
+              <RotateCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
+
         {/* Treasury Overview */}
         <Surface
           tone="white"
@@ -179,7 +203,7 @@ export default function AdminPage() {
               variant={adminData?.isRewardsPaused ? "blue" : "pink"}
               size="md"
               onClick={handleTogglePause}
-              className="w-full text-xs font-black"
+              className="w-full text-xs font-black min-h-[48px]"
             >
               {adminData?.isRewardsPaused ? (
                 <span className="flex items-center gap-1.5">
@@ -213,7 +237,7 @@ export default function AdminPage() {
                 placeholder="0x..."
                 value={banAddress}
                 onChange={(e) => setBanAddress(e.target.value)}
-                className="w-full h-10 px-3 rounded-[12px] border-2 border-[#0B0B14] bg-[#F4FAFF] font-mono text-xs text-[#0B0B14]"
+                className="w-full h-11 px-3 rounded-[12px] border-2 border-[#0B0B14] bg-[#F4FAFF] font-mono text-base text-[#0B0B14]"
               />
             </div>
 
@@ -222,7 +246,7 @@ export default function AdminPage() {
                 variant="white"
                 size="sm"
                 onClick={() => handleBanWallet("ban_wallet")}
-                className="w-1/2 text-xs font-black text-[#E5484D]"
+                className="w-1/2 text-xs font-black text-[#E5484D] min-h-[44px]"
               >
                 Ban Wallet
               </Button>
@@ -230,7 +254,7 @@ export default function AdminPage() {
                 variant="white"
                 size="sm"
                 onClick={() => handleBanWallet("unban_wallet")}
-                className="w-1/2 text-xs font-black text-[#16A34A]"
+                className="w-1/2 text-xs font-black text-[#16A34A] min-h-[44px]"
               >
                 Unban Wallet
               </Button>

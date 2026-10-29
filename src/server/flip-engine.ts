@@ -7,19 +7,21 @@ import { getTreasuryLiveBalance } from "./treasury";
 export type NoRewardReason =
   | "BELOW_MIN_HOLD"
   | "HOLD_TIME_NOT_MET"
-  | "COOLDOWN_ACTIVE"
-  | "MAX_FLIPS_EXCEEDED"
+  | "TIER_FLIP_USED"
+  | "WHALE_COOLDOWN_ACTIVE"
   | "WALLET_DAILY_CAP_REACHED"
   | "GLOBAL_DAILY_BUDGET_REACHED"
   | "TREASURY_INSUFFICIENT"
   | "REWARDS_PAUSED"
-  | "WALLET_BANNED";
+  | "WALLET_BANNED"
+  | "PRACTICE_NO_REWARD";
 
 export interface FlipExecutionRequest {
   walletAddress: string;
   call: "heads" | "tails";
   clientSeed?: string;
-  serverSeedCommitment?: string;
+  isPractice?: boolean;
+  idempotencyKey?: string;
 }
 
 export interface FlipExecutionResult {
@@ -38,6 +40,7 @@ export interface FlipExecutionResult {
   seedHash: string;
   clientSeed: string;
   nonce: number;
+  isPractice: boolean;
   createdAt: number;
 }
 
@@ -62,48 +65,90 @@ export async function executeFlip(
   const nonce = wallet.totalFlips + 1;
   const result = determineFlipOutcome(serverSeed, clientSeed, nonce);
   const calledCorrectly = req.call === result;
+  const flipId = `flp_${now}_${Math.random().toString(36).substring(2, 7)}`;
 
-  // 4. Read token balance and assess multiplier tier
-  const tokenBalance = await getWalletTokenBalance(addr);
-  const rawTier = getTierByBalance(tokenBalance);
-
-  // 5. Evaluate Hold-Time Rule
-  // A wallet only counts a tier after its balance has stayed at or above that tier's threshold for MIN_HOLD_HOURS
-  let eligibleTier = rawTier;
-  let holdTimeReason: NoRewardReason | null = null;
-
-  if (rawTier.tier > 0) {
-    const hoursHeld = (now - wallet.balanceFirstObservedAt) / (1000 * 60 * 60);
-    if (hoursHeld < REWARD_CONFIG.MIN_HOLD_HOURS) {
-      eligibleTier = REWARD_CONFIG.TIERS[0]; // Tier 0 (0x)
-      holdTimeReason = "HOLD_TIME_NOT_MET";
+  // 4. Handle PRACTICE flips
+  if (req.isPractice) {
+    const practiceResult = await repository.recordPracticeFlip(addr);
+    if (!practiceResult.success) {
+      throw new Error(practiceResult.error || "Practice flip failed");
     }
+
+    return {
+      id: flipId,
+      walletAddress: addr,
+      call: req.call,
+      result,
+      calledCorrectly,
+      tokenBalance: wallet.lastBalance,
+      appliedTier: 0,
+      tierMultiplier: 0,
+      callMultiplier: 1.0,
+      rewardEth: 0,
+      noRewardReason: "PRACTICE_NO_REWARD",
+      serverSeed,
+      seedHash,
+      clientSeed,
+      nonce,
+      isPractice: true,
+      createdAt: now,
+    };
   }
 
-  // 6. Evaluate Cooldown, Caps & Budget Controls
-  const ledgerSummary = await repository.getLedgerSummary(addr);
+  // 5. Read token balance and assess multiplier tier
+  const tokenBalance = await getWalletTokenBalance(addr);
+  await repository.updateWalletBalance(addr, tokenBalance);
+  const rawTier = getTierByBalance(tokenBalance);
+
+  let eligibleTier = rawTier;
   let noRewardReason: NoRewardReason | null = null;
 
   if (rewardsPaused) {
     noRewardReason = "REWARDS_PAUSED";
   } else if (rawTier.tier === 0) {
     noRewardReason = "BELOW_MIN_HOLD";
-  } else if (holdTimeReason) {
-    noRewardReason = holdTimeReason;
-  } else if (
-    ledgerSummary.lastFlipTimestamp &&
-    now - ledgerSummary.lastFlipTimestamp < REWARD_CONFIG.COOLDOWN_SECONDS * 1000
-  ) {
-    noRewardReason = "COOLDOWN_ACTIVE";
-  } else if (ledgerSummary.flipsToday >= REWARD_CONFIG.MAX_FLIPS_PER_WALLET_PER_DAY) {
-    noRewardReason = "MAX_FLIPS_EXCEEDED";
-  } else if (ledgerSummary.rewardsEarnedTodayEth >= REWARD_CONFIG.WALLET_DAILY_CAP_ETH) {
-    noRewardReason = "WALLET_DAILY_CAP_REACHED";
-  } else if (ledgerSummary.globalRewardsEarnedTodayEth >= REWARD_CONFIG.GLOBAL_DAILY_BUDGET_ETH) {
-    noRewardReason = "GLOBAL_DAILY_BUDGET_REACHED";
+  } else {
+    // 6. Evaluate Hold-Time Rule (24h minimum hold at or above tier)
+    const hoursHeld = (now - wallet.balanceFirstObservedAt) / (1000 * 60 * 60);
+    if (hoursHeld < REWARD_CONFIG.MIN_HOLD_HOURS) {
+      noRewardReason = "HOLD_TIME_NOT_MET";
+      eligibleTier = REWARD_CONFIG.TIERS[0];
+    } else {
+      // 7. Evaluate Tier-Gated Flip Availability
+      const isWhale = rawTier.tier === REWARD_CONFIG.WHALE_TIER_INDEX;
+
+      if (isWhale) {
+        // Whale tier: rolling 24h privilege
+        const recentWhaleFlips = await repository.getLastTierFlips(addr, 1);
+        if (recentWhaleFlips.length > 0) {
+          const lastUsed = recentWhaleFlips[0].usedAt;
+          const cooldownMs = REWARD_CONFIG.LAST_TIER_COOLDOWN_HOURS * 3600 * 1000;
+          if (now - lastUsed < cooldownMs) {
+            noRewardReason = "WHALE_COOLDOWN_ACTIVE";
+          }
+        }
+      } else {
+        // Tiers 1-4: exactly one flip per tier
+        const usedTierFlips = await repository.getTierFlips(addr);
+        const hasUsedThisTier = usedTierFlips.some((tf) => tf.tier === rawTier.tier);
+        if (hasUsedThisTier) {
+          noRewardReason = "TIER_FLIP_USED";
+        }
+      }
+    }
   }
 
-  // 7. Calculate potential reward
+  // 8. Evaluate Daily Budget Caps
+  const ledgerSummary = await repository.getLedgerSummary(addr);
+  if (!noRewardReason) {
+    if (ledgerSummary.rewardsEarnedTodayEth >= REWARD_CONFIG.WALLET_DAILY_CAP_ETH) {
+      noRewardReason = "WALLET_DAILY_CAP_REACHED";
+    } else if (ledgerSummary.globalRewardsEarnedTodayEth >= REWARD_CONFIG.GLOBAL_DAILY_BUDGET_ETH) {
+      noRewardReason = "GLOBAL_DAILY_BUDGET_REACHED";
+    }
+  }
+
+  // 9. Calculate potential reward
   const calc = calculateFlipReward({
     tierMultiplier: noRewardReason ? 0 : eligibleTier.multiplier,
     calledCorrectly,
@@ -111,18 +156,15 @@ export async function executeFlip(
 
   let finalRewardEth = calc.totalRewardEth;
 
-  // 8. If reward > 0, check live treasury balance
+  // 10. Check live treasury balance if reward > 0
   if (finalRewardEth > 0) {
     const treasuryBalance = await getTreasuryLiveBalance();
     if (treasuryBalance < finalRewardEth) {
-      // Treasury cannot cover
       finalRewardEth = 0;
       noRewardReason = "TREASURY_INSUFFICIENT";
     }
   }
 
-  // 9. Build and record flip record
-  const flipId = `flp_${now}_${Math.random().toString(36).substring(2, 7)}`;
   const flipRecord = {
     id: flipId,
     walletAddress: addr,
@@ -142,12 +184,30 @@ export async function executeFlip(
     createdAt: now,
   };
 
-  // Record in repository and append to ledger
-  await repository.recordFlip(flipRecord, finalRewardEth);
+  // 11. Atomic recording (single transaction prevents double claims)
+  if (!noRewardReason && eligibleTier.tier > 0) {
+    const isWhale = eligibleTier.tier === REWARD_CONFIG.WHALE_TIER_INDEX;
+    const recordResult = await repository.recordTierFlipAtomic({
+      flip: flipRecord,
+      tier: eligibleTier.tier,
+      isWhale,
+      ledgerAmountEth: finalRewardEth,
+      idempotencyKey: req.idempotencyKey,
+    });
+
+    if (!recordResult.success) {
+      // Concurrency protection caught parallel double submit
+      throw new Error(recordResult.error || "Concurrent flip rejected");
+    }
+  } else {
+    // Record flip without tier claim (e.g. capped or no reward)
+    await repository.recordFlip(flipRecord, finalRewardEth);
+  }
 
   return {
     ...flipRecord,
     calledCorrectly,
     noRewardReason,
+    isPractice: false,
   };
 }

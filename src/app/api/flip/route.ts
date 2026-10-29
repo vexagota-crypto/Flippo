@@ -8,6 +8,8 @@ import { env } from "@/lib/env";
 const flipBodySchema = z.object({
   call: z.enum(["heads", "tails"]),
   clientSeed: z.string().max(64).optional(),
+  isPractice: z.boolean().optional(),
+  idempotencyKey: z.string().max(128).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -48,6 +50,8 @@ export async function POST(req: NextRequest) {
       walletAddress: user.walletAddress,
       call: parsed.data.call,
       clientSeed: parsed.data.clientSeed,
+      isPractice: parsed.data.isPractice,
+      idempotencyKey: parsed.data.idempotencyKey,
     });
 
     // 4. Return result with updated stats

@@ -6,7 +6,7 @@ import { Footer } from "@/components/footer";
 import { Surface } from "@/components/ui/surface";
 import { Button } from "@/components/ui/button";
 import { useWallets } from "@privy-io/react-auth";
-import { Sparkles, CheckCircle, AlertCircle, Droplets } from "lucide-react";
+import { Sparkles, CheckCircle, AlertCircle, Droplets, RotateCw } from "lucide-react";
 
 export default function FaucetPage() {
   const { wallets } = useWallets();
@@ -27,13 +27,18 @@ export default function FaucetPage() {
     setSuccessMsg(null);
     setErrorMsg(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     try {
       const res = await fetch("/api/faucet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({ address: effectiveAddress }),
       });
 
+      clearTimeout(timeoutId);
       const data = await res.json();
       if (!res.ok || !data.success) {
         throw new Error(data.error || "Faucet claim failed");
@@ -41,7 +46,8 @@ export default function FaucetPage() {
 
       setSuccessMsg(data.message);
     } catch (err: any) {
-      setErrorMsg(err?.message || "Failed to claim faucet tokens");
+      clearTimeout(timeoutId);
+      setErrorMsg(err.name === "AbortError" ? "Request timed out. Please retry." : err?.message || "Failed to claim faucet tokens");
     } finally {
       setLoading(false);
     }
@@ -83,12 +89,13 @@ export default function FaucetPage() {
               <label className="font-mono text-xs font-bold text-[#0B0B14] block mb-1.5">
                 Recipient Wallet Address (Robinhood Chain)
               </label>
+              {/* text-base prevents iOS Safari from automatically zooming on focus */}
               <input
                 type="text"
                 placeholder={activeWallet?.address || "0x..."}
                 value={targetAddress}
                 onChange={(e) => setTargetAddress(e.target.value)}
-                className="w-full h-12 px-4 rounded-[14px] border-2 border-[#0B0B14] bg-[#F4FAFF] font-mono text-xs sm:text-sm text-[#0B0B14] focus:outline-none focus:border-[#0C73FE]"
+                className="w-full h-12 px-4 rounded-[14px] border-2 border-[#0B0B14] bg-[#F4FAFF] font-mono text-base text-[#0B0B14] focus:outline-none focus:border-[#0C73FE]"
               />
               {activeWallet?.address && !targetAddress && (
                 <span className="text-[10px] font-mono text-[#0B0B14]/60 block mt-1">
@@ -103,7 +110,7 @@ export default function FaucetPage() {
               size="lg"
               isLoading={loading}
               disabled={!effectiveAddress || loading}
-              className="w-full font-black text-sm"
+              className="w-full font-black text-sm min-h-[56px] h-14"
             >
               Drip 10,000 $FLIPPO
             </Button>
@@ -117,9 +124,19 @@ export default function FaucetPage() {
           )}
 
           {errorMsg && (
-            <div className="p-3 bg-[#E5484D]/10 border-2 border-[#E5484D] text-[#E5484D] rounded-[14px] text-xs font-mono font-bold flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMsg}</span>
+            <div className="p-3 bg-[#E5484D]/10 border-2 border-[#E5484D] text-[#E5484D] rounded-[14px] text-xs font-mono font-bold flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleClaim}
+                className="px-2 py-1 bg-[#E5484D] text-white rounded text-[11px] font-bold flex items-center gap-1 shrink-0"
+              >
+                <RotateCw className="w-3 h-3" />
+                <span>Retry</span>
+              </button>
             </div>
           )}
         </Surface>

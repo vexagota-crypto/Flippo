@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const wallets = sqliteTable("wallets", {
   address: text("address").primaryKey(),
@@ -31,6 +31,48 @@ export const flips = sqliteTable("flips", {
   rewardEth: real("reward_eth").notNull(),
   noRewardReason: text("no_reward_reason"), // null or reason
   createdAt: integer("created_at").notNull(),
+});
+
+export const tierFlips = sqliteTable(
+  "tier_flips",
+  {
+    id: text("id").primaryKey(),
+    walletAddress: text("wallet_address").notNull(),
+    tier: integer("tier").notNull(),
+    usedAt: integer("used_at").notNull(),
+    flipId: text("flip_id").notNull(),
+    ledgerId: text("ledger_id"),
+    createdAt: integer("created_at").notNull(),
+  },
+  (table) => ({
+    walletTierUniq: uniqueIndex("wallet_tier_idx").on(table.walletAddress, table.tier),
+  })
+);
+
+export const lastTierFlips = sqliteTable("last_tier_flips", {
+  id: text("id").primaryKey(),
+  walletAddress: text("wallet_address").notNull(),
+  tier: integer("tier").notNull(),
+  usedAt: integer("used_at").notNull(),
+  flipId: text("flip_id").notNull(),
+  ledgerId: text("ledger_id"),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const practiceFlips = sqliteTable("practice_flips", {
+  id: text("id").primaryKey(),
+  walletAddress: text("wallet_address").notNull(),
+  createdAt: integer("created_at").notNull(),
+});
+
+export const recycleGuardFlags = sqliteTable("recycle_guard_flags", {
+  id: text("id").primaryKey(),
+  walletAddress: text("wallet_address").notNull(),
+  reason: text("reason").notNull(),
+  details: text("details"),
+  status: text("status").notNull().default("flagged"), // 'flagged' | 'cleared' | 'banned'
+  createdAt: integer("created_at").notNull(),
+  updatedAt: integer("updated_at").notNull(),
 });
 
 export const ledger = sqliteTable("ledger", {
