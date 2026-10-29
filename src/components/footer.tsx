@@ -7,6 +7,7 @@ import { env } from "@/lib/env";
 import { Copy, Check, ArrowUpRight } from "lucide-react";
 
 const COPYRIGHT_YEAR = 2026;
+const currentYear = COPYRIGHT_YEAR;
 
 export function Footer() {
   const [caCopied, setCaCopied] = useState(false);
