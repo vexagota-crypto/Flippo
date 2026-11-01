@@ -26,7 +26,7 @@ export function ConnectButton({
 }: ConnectButtonProps) {
   const { login, logout, authenticated, ready, user } = usePrivy();
   const { wallets } = useWallets();
-  const [isSlowReady, setIsSlowReady] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   const [showDeepLinks, setShowDeepLinks] = useState(false);
@@ -40,35 +40,30 @@ export function ConnectButton({
     }
   }, []);
 
-  // 4 second timeout if Privy is slow to become ready
-  useEffect(() => {
-    if (ready) {
-      setIsSlowReady(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      if (!ready) {
-        setIsSlowReady(true);
-      }
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [ready]);
-
   const handleConnect = () => {
     setErrorMessage(null);
 
     // Insecure context check (e.g. HTTP on LAN IP)
-    if (typeof window !== "undefined" && window.isSecureContext === false && window.location.hostname !== "localhost") {
+    if (
+      typeof window !== "undefined" &&
+      window.isSecureContext === false &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
       setErrorMessage("Open Flippo over HTTPS to connect a wallet (Web3 requires a secure context).");
       return;
     }
 
     try {
-      // Must call login() directly and synchronously in click handler to preserve user activation for popup/deep-link
-      login();
+      if (typeof login === "function") {
+        setIsConnecting(true);
+        login();
+      }
     } catch (err: any) {
       console.error("Wallet connection error:", err);
       setErrorMessage(err?.message || "Failed to initialize wallet login.");
+    } finally {
+      setTimeout(() => setIsConnecting(false), 2000);
     }
   };
 
@@ -103,42 +98,7 @@ export function ConnectButton({
     );
   }
 
-  // Not ready after 4s (Retry state)
-  if (!ready && isSlowReady) {
-    return (
-      <div className={`flex flex-col gap-1.5 shrink-0 ${fullWidth ? "w-full" : "w-auto"}`}>
-        <Button
-          variant="white"
-          size={size}
-          onClick={handleConnect}
-          className={`border-2 border-[#E5484D] text-[#E5484D] whitespace-nowrap shrink-0 ${className}`}
-        >
-          <RefreshCw className="w-4 h-4 mr-1.5 animate-spin shrink-0" />
-          <span className="whitespace-nowrap">Retry Connection</span>
-        </Button>
-        <span className="text-[11px] font-mono text-[#E5484D] text-center">
-          Privy initialization slow. Tap to retry.
-        </span>
-      </div>
-    );
-  }
-
-  // Loading state
-  if (!ready) {
-    return (
-      <Button
-        variant={variant}
-        size={size}
-        disabled
-        className={`opacity-70 whitespace-nowrap shrink-0 ${className}`}
-      >
-        <RefreshCw className="w-4 h-4 mr-2 animate-spin shrink-0" />
-        <span className="whitespace-nowrap">Connecting...</span>
-      </Button>
-    );
-  }
-
-  // Ready state
+  // Ready / Default state
   return (
     <div className={`flex flex-col gap-2 shrink-0 ${fullWidth ? "w-full" : "w-auto"}`}>
       <Button
@@ -147,8 +107,14 @@ export function ConnectButton({
         onClick={handleConnect}
         className={`whitespace-nowrap shrink-0 ${fullWidth ? "w-full " : ""}${className}`}
       >
-        <Wallet className="w-4 h-4 mr-2 shrink-0" />
-        <span className="whitespace-nowrap">{children || label || "Connect Wallet"}</span>
+        {isConnecting ? (
+          <RefreshCw className="w-4 h-4 mr-2 animate-spin shrink-0" />
+        ) : (
+          <Wallet className="w-4 h-4 mr-2 shrink-0" />
+        )}
+        <span className="whitespace-nowrap">
+          {isConnecting ? "Connecting..." : children || label || "Connect Wallet"}
+        </span>
       </Button>
 
       {errorMessage && (
