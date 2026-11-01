@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { repository } from "@/db/repository";
 import { getWalletTokenBalance } from "@/server/token-balance";
 import { REWARD_CONFIG, getTierByBalance, calculateFlipReward } from "@/config/rewards";
 
 export async function GET(req: NextRequest) {
+  await connection();
   try {
     const address = req.nextUrl.searchParams.get("address");
 
@@ -140,6 +141,7 @@ export async function GET(req: NextRequest) {
       isRewardsPaused: paused,
     });
   } catch (err: any) {
+    if (err?.digest === "NEXT_PRERENDER_INTERRUPTED") throw err;
     console.error("Error fetching user stats:", err);
     return NextResponse.json(
       { error: err?.message || "Failed to fetch user stats" },

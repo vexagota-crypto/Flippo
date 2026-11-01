@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { repository } from "@/db/repository";
 import { getTreasuryAddress, getTreasuryLiveBalance } from "@/server/treasury";
 import { authenticateRequest } from "@/server/auth";
@@ -6,6 +6,7 @@ import { env } from "@/lib/env";
 import { sqlite } from "@/db/index";
 
 export async function GET(req: NextRequest) {
+  await connection();
   try {
     const user = await authenticateRequest(req);
     const adminWallets = (env.server.ADMIN_WALLETS || "")
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    if (err?.digest === "NEXT_PRERENDER_INTERRUPTED") throw err;
     return NextResponse.json({ error: err?.message || "Admin query failed" }, { status: 500 });
   }
 }

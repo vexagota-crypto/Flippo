@@ -1,10 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { repository } from "@/db/repository";
 import { getWalletTokenBalance } from "@/server/token-balance";
 import { REWARD_CONFIG, getTierByBalance, getNextTier } from "@/config/rewards";
 import { getTreasuryLiveBalance } from "@/server/treasury";
 
 export async function GET(req: NextRequest) {
+  await connection();
   try {
     const address = req.nextUrl.searchParams.get("address");
 
@@ -166,6 +167,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err: any) {
+    if (err?.digest === "NEXT_PRERENDER_INTERRUPTED") throw err;
     console.error("Error in /api/flip-status:", err);
     return NextResponse.json(
       { error: err?.message || "Failed to fetch flip status" },

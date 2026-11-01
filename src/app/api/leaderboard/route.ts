@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, connection } from "next/server";
 import { repository } from "@/db/repository";
 
 export async function GET(req: NextRequest) {
+  await connection();
   try {
     const by = (req.nextUrl.searchParams.get("by") || "rewards") as "rewards" | "streak";
     const timeFrame = (req.nextUrl.searchParams.get("timeFrame") || "all") as "24h" | "7d" | "all";
@@ -16,6 +17,7 @@ export async function GET(req: NextRequest) {
       data: rows,
     });
   } catch (err: any) {
+    if (err?.digest === "NEXT_PRERENDER_INTERRUPTED") throw err;
     console.error("Leaderboard query error:", err);
     return NextResponse.json(
       { error: err?.message || "Failed to fetch leaderboard" },
