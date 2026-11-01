@@ -3,17 +3,9 @@ pragma solidity ^0.8.20;
 
 /**
  * @title FlippoToken
- * @dev Test ERC-20 token for Flippo ($FLIPPO) on Robinhood Chain
+ * @dev Test ERC-20 token for Flippo ($FLIPPO) on Robinhood Chain Testnet
+ * Self-contained without external dependencies for easy deployment on Remix IDE.
  */
-interface IERC20 {
-    function totalSupply() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address recipient, uint256 amount) external returns (bool);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function approve(address spender, uint256 amount) external returns (bool);
-    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
-}
-
 contract FlippoToken {
     string public name = "Flippo";
     string public symbol = "FLIPPO";
@@ -32,15 +24,28 @@ contract FlippoToken {
         _;
     }
 
+    /**
+     * @notice Deploy Flippo token.
+     * @param initialSupply Whole tokens to mint to deployer (e.g. 100000000 for 100M). If 0, defaults to 100,000,000 FLIPPO.
+     */
     constructor(uint256 initialSupply) {
         owner = msg.sender;
-        if (initialSupply > 0) {
-            _mint(msg.sender, initialSupply * 10 ** decimals);
-        }
+        uint256 supply = initialSupply > 0 ? initialSupply : 100_000_000;
+        _mint(msg.sender, supply * 10 ** decimals);
     }
 
-    function mint(address to, uint256 amount) external onlyOwner {
+    /// @dev Mint tokens in wei (exact 18-decimal precision)
+    function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+
+    /**
+     * @notice Faucet function for easy tier testing on Robinhood Testnet.
+     * @param to The recipient address (e.g. your test wallet)
+     * @param tokenAmount Whole token amount (e.g. 100000 for Bronze, 500000 for Silver, 2000000 for Gold, 5000000 for Platinum, 10000000 for Diamond)
+     */
+    function faucet(address to, uint256 tokenAmount) external {
+        _mint(to, tokenAmount * 10 ** decimals);
     }
 
     function transfer(address recipient, uint256 amount) external returns (bool) {
