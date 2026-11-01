@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { PrivyProvider } from "@privy-io/react-auth";
+import { mainnet, sepolia, base, arbitrum, polygon, optimism } from "viem/chains";
 import { robinhoodChain } from "@/lib/chains";
 import { env } from "@/lib/env";
 import { Z_INDEX } from "@/styles/z-index";
@@ -85,7 +86,12 @@ export function AppPrivyProvider({ children }: { children: React.ReactNode }) {
           },
           loginMethods: ["wallet"],
           defaultChain: robinhoodChain,
-          supportedChains: [robinhoodChain],
+          supportedChains: [robinhoodChain, mainnet, sepolia, base, arbitrum, polygon, optimism],
+          embeddedWallets: {
+            ethereum: {
+              createOnLogin: "off",
+            },
+          },
           walletConnectCloudProjectId: env.client.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
         }}
       >
