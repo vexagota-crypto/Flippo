@@ -13,14 +13,12 @@ export type NoRewardReason =
   | "GLOBAL_DAILY_BUDGET_REACHED"
   | "TREASURY_INSUFFICIENT"
   | "REWARDS_PAUSED"
-  | "WALLET_BANNED"
-  | "PRACTICE_NO_REWARD";
+  | "WALLET_BANNED";
 
 export interface FlipExecutionRequest {
   walletAddress: string;
   call: "heads" | "tails";
   clientSeed?: string;
-  isPractice?: boolean;
   idempotencyKey?: string;
 }
 
@@ -40,7 +38,6 @@ export interface FlipExecutionResult {
   seedHash: string;
   clientSeed: string;
   nonce: number;
-  isPractice: boolean;
   createdAt: number;
 }
 
@@ -67,35 +64,7 @@ export async function executeFlip(
   const calledCorrectly = req.call === result;
   const flipId = `flp_${now}_${Math.random().toString(36).substring(2, 7)}`;
 
-  // 4. Handle PRACTICE flips
-  if (req.isPractice) {
-    const practiceResult = await repository.recordPracticeFlip(addr);
-    if (!practiceResult.success) {
-      throw new Error(practiceResult.error || "Practice flip failed");
-    }
-
-    return {
-      id: flipId,
-      walletAddress: addr,
-      call: req.call,
-      result,
-      calledCorrectly,
-      tokenBalance: wallet.lastBalance,
-      appliedTier: 0,
-      tierMultiplier: 0,
-      callMultiplier: 1.0,
-      rewardEth: 0,
-      noRewardReason: "PRACTICE_NO_REWARD",
-      serverSeed,
-      seedHash,
-      clientSeed,
-      nonce,
-      isPractice: true,
-      createdAt: now,
-    };
-  }
-
-  // 5. Read token balance and assess multiplier tier
+  // 4. Read token balance and assess multiplier tier
   const tokenBalance = await getWalletTokenBalance(addr);
   await repository.updateWalletBalance(addr, tokenBalance);
   const rawTier = getTierByBalance(tokenBalance);
@@ -108,13 +77,13 @@ export async function executeFlip(
   } else if (rawTier.tier === 0) {
     noRewardReason = "BELOW_MIN_HOLD";
   } else {
-    // 6. Evaluate Hold-Time Rule (24h minimum hold at or above tier)
-    const hoursHeld = (now - wallet.balanceFirstObservedAt) / (1000 * 60 * 60);
-    if (hoursHeld < REWARD_CONFIG.MIN_HOLD_HOURS) {
+    // 5. Evaluate Hold-Time Rule (10 minutes minimum hold at or above tier)
+    const minutesHeld = (now - wallet.balanceFirstObservedAt) / (1000 * 60);
+    if (minutesHeld < REWARD_CONFIG.MIN_HOLD_MINUTES) {
       noRewardReason = "HOLD_TIME_NOT_MET";
       eligibleTier = REWARD_CONFIG.TIERS[0];
     } else {
-      // 7. Evaluate Tier-Gated Flip Availability
+      // 6. Evaluate Tier-Gated Flip Availability
       const isWhale = rawTier.tier === REWARD_CONFIG.WHALE_TIER_INDEX;
 
       if (isWhale) {
@@ -208,6 +177,5 @@ export async function executeFlip(
     ...flipRecord,
     calledCorrectly,
     noRewardReason,
-    isPractice: false,
   };
 }

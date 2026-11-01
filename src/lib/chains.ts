@@ -3,7 +3,10 @@ import { env } from "@/lib/env";
 
 export const robinhoodChain = defineChain({
   id: env.client.NEXT_PUBLIC_RH_CHAIN_ID,
-  name: "Robinhood Chain",
+  name:
+    env.client.NEXT_PUBLIC_NETWORK_MODE === "testnet" || env.client.NEXT_PUBLIC_RH_CHAIN_ID === 46630
+      ? "Robinhood Chain Testnet"
+      : "Robinhood Chain",
   nativeCurrency: {
     name: "Ether",
     symbol: "ETH",
@@ -19,10 +22,14 @@ export const robinhoodChain = defineChain({
   },
   blockExplorers: {
     default: {
-      name: "Robinhood Chain Explorer",
+      name:
+        env.client.NEXT_PUBLIC_NETWORK_MODE === "testnet" || env.client.NEXT_PUBLIC_RH_CHAIN_ID === 46630
+          ? "Robinhood Chain Testnet Explorer"
+          : "Robinhood Chain Explorer",
       url: env.client.NEXT_PUBLIC_RH_EXPLORER_URL,
     },
   },
+  testnet: env.client.NEXT_PUBLIC_NETWORK_MODE === "testnet" || env.client.NEXT_PUBLIC_RH_CHAIN_ID === 46630,
   contracts: {},
 });
 

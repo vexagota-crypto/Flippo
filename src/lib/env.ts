@@ -3,9 +3,9 @@ import { z } from "zod";
 const clientEnvSchema = z.object({
   NEXT_PUBLIC_NETWORK_MODE: z.enum(["testnet", "mainnet"]).default("testnet"),
   NEXT_PUBLIC_PRIVY_APP_ID: z.string().min(1, "NEXT_PUBLIC_PRIVY_APP_ID is required"),
-  NEXT_PUBLIC_RH_CHAIN_ID: z.coerce.number().default(4663),
-  NEXT_PUBLIC_RH_RPC_URL: z.string().url("NEXT_PUBLIC_RH_RPC_URL must be a valid URL").default("https://rpc.mainnet.chain.robinhood.com"),
-  NEXT_PUBLIC_RH_EXPLORER_URL: z.string().url("NEXT_PUBLIC_RH_EXPLORER_URL must be a valid URL").default("https://robinhoodchain.blockscout.com/"),
+  NEXT_PUBLIC_RH_CHAIN_ID: z.coerce.number().default(46630),
+  NEXT_PUBLIC_RH_RPC_URL: z.string().url("NEXT_PUBLIC_RH_RPC_URL must be a valid URL").default("https://rpc.testnet.chain.robinhood.com"),
+  NEXT_PUBLIC_RH_EXPLORER_URL: z.string().url("NEXT_PUBLIC_RH_EXPLORER_URL must be a valid URL").default("https://explorer.testnet.chain.robinhood.com"),
   NEXT_PUBLIC_FLIPPO_TOKEN_ADDRESS: z.string().default("COMING_SOON"),
   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: z.string().default(""),
   NEXT_PUBLIC_TWITTER_URL: z.string().default("https://x.com/flippocoin"),

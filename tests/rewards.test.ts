@@ -12,32 +12,32 @@ import {
 
 describe("Reward & Multiplier Engine", () => {
   it("determines correct tiers by $FLIPPO balance", () => {
-    // Below 1,000 -> Tier 0
+    // Below 100,000 -> Tier 0
     expect(getTierByBalance(0).tier).toBe(0);
-    expect(getTierByBalance(999).tier).toBe(0);
-    expect(getTierByBalance(999).multiplier).toBe(0);
+    expect(getTierByBalance(99_999).tier).toBe(0);
+    expect(getTierByBalance(99_999).multiplier).toBe(0);
 
-    // Tier 1: 1,000 to 9,999 -> 1x
-    expect(getTierByBalance(1000).tier).toBe(1);
-    expect(getTierByBalance(1000).multiplier).toBe(1.0);
-    expect(getTierByBalance(5000).multiplier).toBe(1.0);
+    // Tier 1: 100,000 -> 1x
+    expect(getTierByBalance(100_000).tier).toBe(1);
+    expect(getTierByBalance(100_000).multiplier).toBe(1.0);
+    expect(getTierByBalance(250_000).multiplier).toBe(1.0);
 
-    // Tier 2: 10,000 -> 1.5x
-    expect(getTierByBalance(10000).tier).toBe(2);
-    expect(getTierByBalance(10000).multiplier).toBe(1.5);
+    // Tier 2: 500,000 -> 1.5x
+    expect(getTierByBalance(500_000).tier).toBe(2);
+    expect(getTierByBalance(500_000).multiplier).toBe(1.5);
 
-    // Tier 3: 50,000 -> 2x
-    expect(getTierByBalance(50000).tier).toBe(3);
-    expect(getTierByBalance(50000).multiplier).toBe(2.0);
+    // Tier 3: 2,000,000 -> 2x
+    expect(getTierByBalance(2_000_000).tier).toBe(3);
+    expect(getTierByBalance(2_000_000).multiplier).toBe(2.0);
 
-    // Tier 4: 200,000 -> 3x
-    expect(getTierByBalance(200000).tier).toBe(4);
-    expect(getTierByBalance(200000).multiplier).toBe(3.0);
+    // Tier 4: 5,000,000 -> 3x
+    expect(getTierByBalance(5_000_000).tier).toBe(4);
+    expect(getTierByBalance(5_000_000).multiplier).toBe(3.0);
 
-    // Tier 5: 1,000,000+ -> 5x (Hard Cap)
-    expect(getTierByBalance(1000000).tier).toBe(5);
-    expect(getTierByBalance(1000000).multiplier).toBe(5.0);
-    expect(getTierByBalance(10000000).multiplier).toBe(5.0);
+    // Tier 5: 10,000,000+ -> 5x (Hard Cap)
+    expect(getTierByBalance(10_000_000).tier).toBe(5);
+    expect(getTierByBalance(10_000_000).multiplier).toBe(5.0);
+    expect(getTierByBalance(20_000_000).multiplier).toBe(5.0);
   });
 
   it("calculates correct flip rewards for correct calls and incorrect calls", () => {

@@ -158,7 +158,7 @@ export function Navbar() {
 
   const caDisplay =
     env.client.NEXT_PUBLIC_FLIPPO_TOKEN_ADDRESS === "COMING_SOON"
-      ? "CA coming soon"
+      ? "CA: Soon"
       : `CA: ${env.client.NEXT_PUBLIC_FLIPPO_TOKEN_ADDRESS.slice(0, 4)}...${env.client.NEXT_PUBLIC_FLIPPO_TOKEN_ADDRESS.slice(-4)}`;
 
   return (
@@ -178,7 +178,7 @@ export function Navbar() {
       <header className={`fixed top-4 left-0 right-0 ${Z_INDEX.nav} hidden md:flex justify-center px-4 pointer-events-none`}>
         <nav
           aria-label="Main Navigation"
-          className="pointer-events-auto flex items-center justify-between gap-2.5 lg:gap-4 px-3.5 py-2 bg-[#E3F1FF]/95 backdrop-blur-md border-[3px] border-[#0B0B14] shadow-[0_5px_0_#0B0B14] rounded-full h-[60px] max-w-[960px] w-full"
+          className="pointer-events-auto flex items-center justify-between gap-3 lg:gap-4 px-3.5 py-2 bg-[#E3F1FF]/95 backdrop-blur-md border-[3px] border-[#0B0B14] shadow-[0_5px_0_#0B0B14] rounded-full h-[60px] max-w-[1040px] w-full"
         >
           {/* Left: Brand */}
           <Link
@@ -201,20 +201,20 @@ export function Navbar() {
           </Link>
 
           {/* Center Links (Play, Rewards, Leaderboard, History, How it works) */}
-          <div className="flex items-center gap-0.5 lg:gap-1 bg-white/70 p-1 rounded-full border-2 border-[#0B0B14] shadow-[0_2px_0_#0B0B14] shrink-0">
+          <div className="flex items-center gap-0.5 lg:gap-1 bg-white/80 p-1 rounded-full border-2 border-[#0B0B14] shadow-[0_2px_0_#0B0B14] shrink-0 h-11">
             {NAV_LINKS.map((link) => {
               const isActive = pathname === link.href;
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3 lg:px-3.5 py-1.5 rounded-full font-display font-bold text-xs transition-all select-none whitespace-nowrap shrink-0 leading-none ${
+                  className={`px-3 lg:px-4 py-1.5 rounded-full font-display font-bold text-xs transition-all select-none whitespace-nowrap shrink-0 leading-none flex items-center ${
                     isActive
                       ? "bg-[#FE2D88] text-white shadow-[0_2px_0_#0B0B14]"
                       : "text-[#0B0B14] hover:bg-[#E3F1FF]"
                   }`}
                 >
-                  {link.name}
+                  <span className="whitespace-nowrap shrink-0">{link.name}</span>
                 </Link>
               );
             })}
@@ -225,10 +225,10 @@ export function Navbar() {
             <button
               type="button"
               onClick={handleCopyCa}
-              className="hidden xl:flex items-center gap-1.5 h-10 px-3 bg-white/80 hover:bg-white border-2 border-[#0B0B14] rounded-full text-xs font-mono font-bold text-[#0B0B14] shadow-[0_2px_0_#0B0B14] active:translate-y-0.5 transition-transform cursor-pointer whitespace-nowrap shrink-0"
+              className="hidden xl:flex items-center gap-1.5 h-10 px-3.5 bg-white/80 hover:bg-white border-2 border-[#0B0B14] rounded-full text-xs font-mono font-bold text-[#0B0B14] shadow-[0_2px_0_#0B0B14] active:translate-y-0.5 transition-transform cursor-pointer whitespace-nowrap shrink-0"
               title="Copy Contract Address"
             >
-              <span className="whitespace-nowrap">{caDisplay}</span>
+              <span className="whitespace-nowrap shrink-0">{caDisplay}</span>
               {caCopied ? (
                 <Check className="w-3.5 h-3.5 text-[#16A34A] shrink-0" />
               ) : (
@@ -237,7 +237,9 @@ export function Navbar() {
             </button>
 
             {!authenticated ? (
-              <ConnectButton size="pill" variant="pink" />
+              <div className="shrink-0">
+                <ConnectButton size="pill" variant="pink" />
+              </div>
             ) : (
               <div className="shrink-0">
                 <button

@@ -59,12 +59,6 @@ export const lastTierFlips = sqliteTable("last_tier_flips", {
   createdAt: integer("created_at").notNull(),
 });
 
-export const practiceFlips = sqliteTable("practice_flips", {
-  id: text("id").primaryKey(),
-  walletAddress: text("wallet_address").notNull(),
-  createdAt: integer("created_at").notNull(),
-});
-
 export const recycleGuardFlags = sqliteTable("recycle_guard_flags", {
   id: text("id").primaryKey(),
   walletAddress: text("wallet_address").notNull(),

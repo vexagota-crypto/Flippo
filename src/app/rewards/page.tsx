@@ -110,9 +110,9 @@ export default function RewardsPage() {
           </div>
         )}
 
-        {/* PRACTICE STATS & TIER STATUS SUMMARY (If connected) */}
+        {/* TIER STATUS SUMMARY (If connected) */}
         {activeWallet?.address && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-4 bg-white border-[3px] border-[#0B0B14] rounded-[20px] shadow-[0_4px_0_#0B0B14]">
               <span className="text-[10px] font-mono uppercase text-[#0B0B14]/60 block mb-1">
                 Your Highest Tier
@@ -121,7 +121,7 @@ export default function RewardsPage() {
                 {statusData?.rawTier ? `Tier ${statusData.rawTier.tier}: ${statusData.rawTier.name}` : "Connect Wallet"}
               </div>
               <span className="text-[11px] font-mono text-[#0C73FE] font-bold block mt-1">
-                {statusData?.rawTier ? `${statusData.rawTier.multiplier}x Multiplier` : "Hold 1,000+ to qualify"}
+                {statusData?.rawTier ? `${statusData.rawTier.multiplier}x Multiplier` : "Hold 100,000+ to qualify"}
               </span>
             </div>
 
@@ -137,25 +137,13 @@ export default function RewardsPage() {
                     <span className="text-[#16A34A]">Ready Today!</span>
                   )
                 ) : (
-                  <span className="text-[#0B0B14]/50">Whales Only (Tier 5)</span>
+                  <span className="text-[#0B0B14]/50">Whales Only (Tier 5: 10M+)</span>
                 )}
               </div>
               <span className="text-[11px] font-mono text-[#0B0B14]/70 block mt-1">
                 {currentTier === 5 && statusData?.whaleCountdownSeconds > 0
                   ? `Next flip in ${Math.ceil(statusData.whaleCountdownSeconds / 3600)}h`
                   : "1 flip every 24h at 5.0x"}
-              </span>
-            </div>
-
-            <div className="p-4 bg-white border-[3px] border-[#0B0B14] rounded-[20px] shadow-[0_4px_0_#0B0B14]">
-              <span className="text-[10px] font-mono uppercase text-[#0B0B14]/60 block mb-1">
-                Practice Flips Today
-              </span>
-              <div className="font-display font-black text-xl text-[#0B0B14]">
-                {statusData?.practice ? `${statusData.practice.flipsToday} / ${statusData.practice.maxPerDay}` : "0 / 20"}
-              </div>
-              <span className="text-[11px] font-mono text-[#16A34A] font-bold block mt-1">
-                {statusData?.practice ? `${statusData.practice.remainingToday} practice flips left` : "Free practice anytime"}
               </span>
             </div>
           </div>
@@ -193,10 +181,10 @@ export default function RewardsPage() {
               Worked Example:
             </h4>
             <p className="font-body text-xs text-[#0B0B14]/85 leading-relaxed">
-              Suppose you hold <strong>10,000 $FLIPPO</strong> (unlocking <strong>Tier 2: 1.5x Multiplier</strong>) and call <strong>Heads</strong>. The coin lands on Heads:
+              Suppose you hold <strong>500,000 $FLIPPO</strong> (unlocking <strong>Tier 2: 1.5x Multiplier</strong>) and call <strong>Heads</strong>. The coin lands on Heads:
             </p>
             <div className="mt-2 font-mono font-bold text-xs bg-white p-2.5 rounded-[12px] border border-[#0B0B14]/20 text-[#0B0B14]">
-              {REWARD_CONFIG.BASE_REWARD_ETH} ETH &times; 1.5 (Tier 2) &times; 1.5 (Call Bonus) = <span className="text-[#FE2D88] font-black">0.00045 ETH</span>
+              {REWARD_CONFIG.BASE_REWARD_ETH} ETH &times; 1.5 (Tier 2) &times; 1.5 (Call Bonus) = <span className="text-[#FE2D88] font-black">0.0045 ETH</span>
             </div>
           </div>
         </Surface>
@@ -215,7 +203,7 @@ export default function RewardsPage() {
               </h3>
             </div>
             <span className="text-[11px] font-mono text-[#0B0B14]/60">
-              Hold-time rule: 24h
+              Hold-time rule: 10 mins
             </span>
           </div>
 
@@ -286,7 +274,7 @@ export default function RewardsPage() {
                       ) : status === "HOLDING" ? (
                         <span className="px-2 py-0.5 rounded text-[11px] bg-[#FE2D88]/20 text-[#FE2D88] flex items-center gap-1 w-fit">
                           <Clock className="w-3 h-3" />
-                          <span>Holding (24h)</span>
+                          <span>Holding (10m)</span>
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded text-[11px] bg-[#0B0B14]/10 text-[#0B0B14]/60 flex items-center gap-1 w-fit">

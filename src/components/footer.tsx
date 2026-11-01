@@ -83,14 +83,14 @@ export function Footer() {
             <Link href="/" className="hover:text-[#FFE66B] transition-colors">
               Flip Coin
             </Link>
+            <Link href="/how-it-works" className="hover:text-[#FFE66B] transition-colors">
+              How It Works
+            </Link>
             <Link href="/rewards" className="hover:text-[#FFE66B] transition-colors">
               Multiplier Tiers
             </Link>
             <Link href="/leaderboard" className="hover:text-[#FFE66B] transition-colors">
               Hall of Flips
-            </Link>
-            <Link href="/faucet" className="hover:text-[#FFE66B] transition-colors">
-              Testnet Faucet
             </Link>
           </div>
 
@@ -125,15 +125,6 @@ export function Footer() {
               <ArrowUpRight className="w-3 h-3 opacity-60" />
             </a>
             <a
-              href={env.client.NEXT_PUBLIC_TELEGRAM_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-[#FFE66B] transition-colors flex items-center gap-1"
-            >
-              <span>Telegram</span>
-              <ArrowUpRight className="w-3 h-3 opacity-60" />
-            </a>
-            <a
               href={env.client.NEXT_PUBLIC_RH_EXPLORER_URL}
               target="_blank"
               rel="noreferrer"
@@ -154,9 +145,6 @@ export function Footer() {
             </Link>
             <Link href="/privacy" className="hover:text-[#FFE66B] transition-colors">
               Privacy Policy
-            </Link>
-            <Link href="/admin" className="hover:text-[#FFE66B] transition-colors">
-              Admin Portal
             </Link>
           </div>
         </div>

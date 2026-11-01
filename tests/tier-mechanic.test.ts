@@ -3,10 +3,10 @@ import { repository } from "../src/db/repository";
 import { REWARD_CONFIG, getTierByBalance, calculateFlipReward } from "../src/config/rewards";
 import { determineFlipOutcome, generateServerSeedCommitment, verifyFlipFairness } from "../src/lib/fairness";
 
-const runId = Math.random().toString(36).slice(2, 6);
-
 function makeTestAddress(suffix: string): string {
-  const combined = `${runId}_${suffix}`.slice(0, 38).padStart(38, "0");
+  const rand = Math.random().toString(36).slice(2, 8);
+  const time = Date.now().toString(36);
+  const combined = `${rand}_${time}_${suffix}`.slice(0, 38).padStart(38, "0");
   return `0x99${combined}`.toLowerCase();
 }
 
@@ -26,11 +26,11 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       call: "heads" as const,
       result: "heads" as const,
       calledCorrectly: 1,
-      tokenBalance: 1500,
+      tokenBalance: 150_000,
       appliedTier: 1,
       tierMultiplier: 1.0,
       callMultiplier: 1.5,
-      rewardEth: 0.0003,
+      rewardEth: 0.003,
       noRewardReason: null,
       createdAt: now,
     };
@@ -42,6 +42,9 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       isWhale: false,
       ledgerAmountEth: 0.0003,
     });
+    if (!res1.success) {
+      console.error("DEBUG res1 error:", res1.error);
+    }
     expect(res1.success).toBe(true);
 
     // Second Tier 1 flip MUST be rejected
@@ -76,11 +79,11 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
         call: "heads" as const,
         result: "heads" as const,
         calledCorrectly: 1,
-        tokenBalance: tier === 1 ? 1000 : tier === 2 ? 10000 : 50000,
+        tokenBalance: tier === 1 ? 100_000 : tier === 2 ? 500_000 : 2_000_000,
         appliedTier: tier,
         tierMultiplier: tier === 1 ? 1.0 : tier === 2 ? 1.5 : 2.0,
         callMultiplier: 1.5,
-        rewardEth: 0.0003 * tier,
+        rewardEth: 0.003 * tier,
         noRewardReason: null,
         createdAt: now,
       };
@@ -89,7 +92,7 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
         flip,
         tier,
         isWhale: false,
-        ledgerAmountEth: 0.0003 * tier,
+        ledgerAmountEth: 0.003 * tier,
       });
       expect(res.success).toBe(true);
     }
@@ -113,11 +116,11 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       call: "tails" as const,
       result: "tails" as const,
       calledCorrectly: 1,
-      tokenBalance: 50000,
+      tokenBalance: 2_000_000,
       appliedTier: 3,
       tierMultiplier: 2.0,
       callMultiplier: 1.5,
-      rewardEth: 0.0006,
+      rewardEth: 0.006,
       noRewardReason: null,
       createdAt: now,
     };
@@ -127,7 +130,7 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       flip: flipTier3,
       tier: 3,
       isWhale: false,
-      ledgerAmountEth: 0.0006,
+      ledgerAmountEth: 0.006,
     });
     expect(resJump.success).toBe(true);
 
@@ -169,11 +172,11 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       call: "heads" as const,
       result: "heads" as const,
       calledCorrectly: 1,
-      tokenBalance: 1_000_000,
+      tokenBalance: 10_000_000,
       appliedTier: 5,
       tierMultiplier: 5.0,
       callMultiplier: 1.5,
-      rewardEth: 0.0015,
+      rewardEth: 0.015,
       noRewardReason: null,
       createdAt: now,
     };
@@ -183,7 +186,7 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       flip: flipWhale1,
       tier: 5,
       isWhale: true,
-      ledgerAmountEth: 0.0015,
+      ledgerAmountEth: 0.015,
     });
     expect(res1.success).toBe(true);
 
@@ -197,7 +200,7 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       flip: flipWhale2,
       tier: 5,
       isWhale: true,
-      ledgerAmountEth: 0.0015,
+      ledgerAmountEth: 0.015,
     });
     expect(res2.success).toBe(false);
     expect(res2.error).toMatch(/cooldown/i);
@@ -218,11 +221,11 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
       call: "heads" as const,
       result: "heads" as const,
       calledCorrectly: 1,
-      tokenBalance: 10000,
+      tokenBalance: 500_000,
       appliedTier: 2,
       tierMultiplier: 1.5,
       callMultiplier: 1.5,
-      rewardEth: 0.00045,
+      rewardEth: 0.0045,
       noRewardReason: null,
       createdAt: now,
     });
@@ -232,13 +235,13 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
         flip: makeFlip(1),
         tier: 2,
         isWhale: false,
-        ledgerAmountEth: 0.00045,
+        ledgerAmountEth: 0.0045,
       }),
       repository.recordTierFlipAtomic({
         flip: makeFlip(2),
         tier: 2,
         isWhale: false,
-        ledgerAmountEth: 0.00045,
+        ledgerAmountEth: 0.0045,
       }),
     ]);
 
@@ -249,38 +252,37 @@ describe("Tier-Gated Reward Mechanic (E4)", () => {
     expect(failures.length).toBe(1);
   });
 
-  it("practice flips: enforce 15s cooldown and zero ETH reward", async () => {
-    const addr = makeTestAddress("practice_tester");
-    await repository.getOrCreateWallet(addr);
+  it("validates updated tier thresholds, 10-minute hold time, and 0.002 base reward", () => {
+    // 1. Thresholds
+    expect(getTierByBalance(99_999).tier).toBe(0);
+    expect(getTierByBalance(100_000).tier).toBe(1);
+    expect(getTierByBalance(500_000).tier).toBe(2);
+    expect(getTierByBalance(2_000_000).tier).toBe(3);
+    expect(getTierByBalance(5_000_000).tier).toBe(4);
+    expect(getTierByBalance(10_000_000).tier).toBe(5);
 
-    // 1. First practice flip succeeds
-    const p1 = await repository.recordPracticeFlip(addr);
-    expect(p1.success).toBe(true);
+    // 2. 10-Minute Hold Time Gate
+    expect(REWARD_CONFIG.MIN_HOLD_MINUTES).toBe(10);
+    expect(REWARD_CONFIG.HOLD_TIME_MS).toBe(10 * 60 * 1000);
 
-    // 2. Immediate second practice flip is rejected due to 15s cooldown
-    const p2 = await repository.recordPracticeFlip(addr);
-    expect(p2.success).toBe(false);
-    expect(p2.error).toMatch(/cooldown/i);
+    // 3. Base Reward = 0.002 ETH
+    expect(REWARD_CONFIG.BASE_REWARD_ETH).toBe(0.002);
 
-    // 3. Cryptographic fairness is still valid for practice flips
-    const { serverSeed, seedHash } = generateServerSeedCommitment();
-    const outcome = determineFlipOutcome(serverSeed, "practice_client_seed", 1);
-    const verification = verifyFlipFairness({
-      serverSeed,
-      seedHash,
-      clientSeed: "practice_client_seed",
-      nonce: 1,
-      reportedResult: outcome,
-    });
-    expect(verification.isValid).toBe(true);
+    // Tier 1 (1.0x) + Correct Call (1.5x) => 0.002 * 1.0 * 1.5 = 0.003 ETH
+    const tier1Win = calculateFlipReward({ tierMultiplier: 1.0, calledCorrectly: true });
+    expect(tier1Win.totalRewardEth).toBe(0.003);
+
+    // Tier 5 (5.0x) + Correct Call (1.5x) => 0.002 * 5.0 * 1.5 = 0.015 ETH
+    const tier5Win = calculateFlipReward({ tierMultiplier: 5.0, calledCorrectly: true });
+    expect(tier5Win.totalRewardEth).toBe(0.015);
   });
 
   it("daily wallet cap and budget limits are correctly evaluated", () => {
-    const userEarned = 0.01;
+    const userEarned = 0.1;
     const isCapReached = userEarned >= REWARD_CONFIG.WALLET_DAILY_CAP_ETH;
     expect(isCapReached).toBe(true);
 
-    const protocolEarned = 0.5;
+    const protocolEarned = 5.0;
     const isGlobalCapReached = protocolEarned >= REWARD_CONFIG.GLOBAL_DAILY_BUDGET_ETH;
     expect(isGlobalCapReached).toBe(true);
   });

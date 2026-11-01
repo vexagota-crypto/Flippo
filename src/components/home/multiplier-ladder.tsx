@@ -66,7 +66,7 @@ export function MultiplierLadder() {
               One Flip Per Tier + 24h Whale Daily
             </h2>
             <p className="text-xs sm:text-sm text-[#0B0B14]/75 mt-1">
-              Every holding milestone unlocks a one-time boosted flip. Whales holding 1,000,000+ enjoy a recurring 5x flip every 24 hours.
+              Every holding milestone unlocks a one-time boosted flip. Whales holding 10,000,000+ enjoy a recurring 5x flip every 24 hours.
             </p>
           </div>
 
@@ -89,7 +89,7 @@ export function MultiplierLadder() {
                         0,
                         ((tokenBalance - (statusData.rawTier?.minTokens || 0)) /
                           (statusData.nextTier.minTokens - (statusData.rawTier?.minTokens || 0))) *
-                          100
+                        100
                       )
                     )}%`,
                   }}
@@ -134,15 +134,14 @@ export function MultiplierLadder() {
             return (
               <div
                 key={tier.tier}
-                className={`relative p-4 rounded-[20px] border-[3px] border-[#0B0B14] flex flex-col justify-between transition-transform duration-200 ${heightClasses[tier.tier]} ${
-                  isUserTier
+                className={`relative p-4 rounded-[20px] border-[3px] border-[#0B0B14] flex flex-col justify-between transition-transform duration-200 ${heightClasses[tier.tier]} ${isUserTier
                     ? "bg-[#FFE66B] shadow-[0_6px_0_#0B0B14] translate-y-[-4px]"
                     : status === "USED" || status === "FORFEITED"
-                    ? "bg-[#F0F2F5] shadow-[0_2px_0_#0B0B14] opacity-80"
-                    : status === "LOCKED"
-                    ? "bg-[#F4FAFF] shadow-[0_2px_0_#0B0B14]"
-                    : "bg-[#E3F1FF] shadow-[0_4px_0_#0B0B14]"
-                }`}
+                      ? "bg-[#F0F2F5] shadow-[0_2px_0_#0B0B14] opacity-80"
+                      : status === "LOCKED"
+                        ? "bg-[#F4FAFF] shadow-[0_2px_0_#0B0B14]"
+                        : "bg-[#E3F1FF] shadow-[0_4px_0_#0B0B14]"
+                  }`}
               >
                 {/* Status Badges */}
                 {isUserTier && (

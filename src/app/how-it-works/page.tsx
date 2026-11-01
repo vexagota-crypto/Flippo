@@ -27,8 +27,8 @@ import {
 export default function HowItWorksPage() {
   const isTestnet = env.client.NEXT_PUBLIC_NETWORK_MODE === "testnet";
 
-  // State for interactive slider (0 to 1,000,000)
-  const [sliderTokens, setSliderTokens] = useState<number>(25_000);
+  // State for interactive slider (0 to 10,000,000)
+  const [sliderTokens, setSliderTokens] = useState<number>(500_000);
   const activeTier = getTierByBalance(sliderTokens);
 
   // State for Reward Math calculator
@@ -54,19 +54,15 @@ export default function HowItWorksPage() {
     },
     {
       q: "How many reward flips can I do?",
-      a: "Each standard holding tier (Tiers 1 through 4) grants you exactly one lifetime reward flip when reached and held for 24 hours. Once used, that tier's reward flip is spent. To unlock another reward flip, acquire enough $FLIPPO to reach the next tier!",
+      a: "Each standard holding tier (Tiers 1 through 4) grants you exactly one lifetime reward flip when reached and held for 10 minutes. Once used, that tier's reward flip is spent. To unlock another reward flip, acquire enough $FLIPPO to reach the next tier!",
     },
     {
       q: "What happens if I buy tokens and skip tiers?",
-      a: "If you purchase enough $FLIPPO to jump directly over lower tiers (for example, buying 200,000 tokens to jump straight to Tier 4), the skipped lower tiers are forfeited and cannot be claimed retroactively. You will be eligible for the Tier 4 flip once your 24-hour hold time completes.",
+      a: "If you purchase enough $FLIPPO to jump directly over lower tiers (for example, buying 2,000,000 tokens to jump straight to Tier 3), the skipped lower tiers are forfeited and cannot be claimed retroactively. You will be eligible for the Tier 3 flip once your 10-minute hold time completes.",
     },
     {
       q: "How does the Whale tier (Tier 5) work?",
-      a: "Holders of 1,000,000 or more $FLIPPO unlock the ultimate Whale privilege: a recurring 5.0x reward flip that refreshes every 24 hours on a rolling window. There is no lifetime cap for whales—you can flip every single day as long as you maintain your balance.",
-    },
-    {
-      q: "What are practice flips?",
-      a: "Want to experience the thrill without burning a reward flip, or while waiting for your 24-hour hold time? You can take up to 20 practice flips per UTC day completely free. Practice flips use the same provably fair engine but distribute 0 ETH.",
+      a: "Holders of 10,000,000 or more $FLIPPO unlock the ultimate Whale privilege: a recurring 5.0x reward flip that refreshes every 24 hours on a rolling window. There is no lifetime cap for whales—you can flip every single day as long as you maintain your balance.",
     },
     {
       q: "How do I claim my ETH rewards?",
@@ -159,10 +155,10 @@ export default function HowItWorksPage() {
                 2
               </div>
               <h3 className="font-display font-black text-lg text-[#0B0B14]">
-                Hold $FLIPPO (24h)
+                Hold $FLIPPO (10m)
               </h3>
               <p className="text-xs text-[#0B0B14]/80 font-body leading-relaxed">
-                Hold tokens to unlock reward tiers from 1.0x to 5.0x. Maintain your balance for 24 hours to fulfill the anti-flash-loan hold rule.
+                Hold tokens to unlock reward tiers from 1.0x to 5.0x. Maintain your balance for 10 minutes to fulfill the anti-flash-loan hold rule.
               </p>
               <div className="mt-auto pt-2 text-[11px] font-mono font-bold text-[#FE2D88]">
                 ⭐ Up to 5.0x reward multiplier
@@ -231,17 +227,18 @@ export default function HowItWorksPage() {
               <input
                 type="range"
                 min="0"
-                max="1000000"
-                step="5000"
+                max="10000000"
+                step="100000"
                 value={sliderTokens}
                 onChange={(e) => setSliderTokens(Number(e.target.value))}
                 className="w-full h-3 bg-white border border-[#0B0B14] rounded-lg appearance-none cursor-pointer accent-[#FE2D88]"
               />
               <div className="flex justify-between text-[10px] font-mono text-[#0B0B14]/50">
                 <span>0</span>
-                <span>200K (Plat)</span>
-                <span>500K</span>
-                <span>1M+ (Whale)</span>
+                <span>500K (Silver)</span>
+                <span>2M (Gold)</span>
+                <span>5M (Plat)</span>
+                <span>10M+ (Whale)</span>
               </div>
             </div>
 
@@ -465,21 +462,14 @@ export default function HowItWorksPage() {
               <div className="p-3 bg-white border-2 border-[#0B0B14] rounded-[14px] flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0 mt-0.5" />
                 <div>
-                  <strong>24h Hold Time:</strong> Tokens must be held for 24 continuous hours before unlocks activate.
+                  <strong>10m Hold Time:</strong> Tokens must be held for 10 continuous minutes before tier unlocks activate.
                 </div>
               </div>
 
-              <div className="p-3 bg-white border-2 border-[#0B0B14] rounded-[14px] flex items-start gap-2">
+              <div className="p-3 bg-white border-2 border-[#0B0B14] rounded-[14px] flex items-start gap-2 sm:col-span-2">
                 <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0 mt-0.5" />
                 <div>
-                  <strong>Practice Flips:</strong> 15-second cooldown, max 20 free practice flips per UTC day.
-                </div>
-              </div>
-
-              <div className="p-3 bg-white border-2 border-[#0B0B14] rounded-[14px] flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#16A34A] shrink-0 mt-0.5" />
-                <div>
-                  <strong>Daily Budget:</strong> 0.01 ETH wallet cap and 0.5 ETH global protocol cap per UTC day.
+                  <strong>Daily Budget:</strong> 0.1 ETH wallet cap and 5.0 ETH global protocol cap per UTC day.
                 </div>
               </div>
             </div>

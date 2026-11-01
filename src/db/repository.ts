@@ -1,5 +1,5 @@
 import { db, sqlite } from "./index";
-import { wallets, flips, ledger, payouts, protocolSettings, auditLog, tierFlips, lastTierFlips, practiceFlips, recycleGuardFlags } from "./schema";
+import { wallets, flips, ledger, payouts, protocolSettings, auditLog, tierFlips, lastTierFlips, recycleGuardFlags } from "./schema";
 import { eq, desc, and, gte, gt, sql } from "drizzle-orm";
 import { REWARD_CONFIG } from "@/config/rewards";
 
@@ -78,9 +78,6 @@ export interface IRepository {
     ledgerAmountEth: number;
     idempotencyKey?: string;
   }): Promise<{ success: boolean; error?: string }>;
-  getPracticeFlipsCountToday(address: string): Promise<number>;
-  getLastPracticeFlip(address: string): Promise<{ createdAt: number } | null>;
-  recordPracticeFlip(address: string): Promise<{ success: boolean; error?: string }>;
   getRecycleFlags(): Promise<any[]>;
   flagRecycleWallet(address: string, reason: string, details?: string): Promise<void>;
   resolveRecycleFlag(id: string, action: "ban" | "clear"): Promise<void>;
@@ -358,60 +355,6 @@ export class SQLiteRepository implements IRepository {
     } catch (err: any) {
       return { success: false, error: err?.message || "Failed to record tier flip" };
     }
-  }
-
-  async getPracticeFlipsCountToday(address: string): Promise<number> {
-    const addr = address.toLowerCase();
-    const now = new Date();
-    const startOfDayUtc = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-
-    const res = db
-      .select({ count: sql<number>`count(*)` })
-      .from(practiceFlips)
-      .where(and(eq(practiceFlips.walletAddress, addr), gte(practiceFlips.createdAt, startOfDayUtc)))
-      .get();
-
-    return res?.count || 0;
-  }
-
-  async getLastPracticeFlip(address: string): Promise<{ createdAt: number } | null> {
-    const addr = address.toLowerCase();
-    const res = db
-      .select({ createdAt: practiceFlips.createdAt })
-      .from(practiceFlips)
-      .where(eq(practiceFlips.walletAddress, addr))
-      .orderBy(desc(practiceFlips.createdAt))
-      .limit(1)
-      .get();
-
-    return res ? { createdAt: res.createdAt } : null;
-  }
-
-  async recordPracticeFlip(address: string): Promise<{ success: boolean; error?: string }> {
-    const addr = address.toLowerCase();
-    const now = Date.now();
-
-    // Check practice cooldown (15s)
-    const last = await this.getLastPracticeFlip(addr);
-    if (last && now - last.createdAt < REWARD_CONFIG.PRACTICE_COOLDOWN_SECONDS * 1000) {
-      return { success: false, error: "Practice flip cooldown active (15s)" };
-    }
-
-    // Check practice daily cap (20)
-    const count = await this.getPracticeFlipsCountToday(addr);
-    if (count >= REWARD_CONFIG.PRACTICE_MAX_PER_DAY) {
-      return { success: false, error: `Daily practice flip limit (${REWARD_CONFIG.PRACTICE_MAX_PER_DAY}) reached` };
-    }
-
-    db.insert(practiceFlips)
-      .values({
-        id: `prac_${now}_${Math.random().toString(36).slice(2, 6)}`,
-        walletAddress: addr,
-        createdAt: now,
-      })
-      .run();
-
-    return { success: true };
   }
 
   async getRecycleFlags(): Promise<any[]> {
@@ -738,7 +681,7 @@ export class SQLiteRepository implements IRepository {
         time: flips.createdAt,
       })
       .from(flips)
-      .where(gte(flips.rewardEth, 0.0003))
+      .where(gte(flips.rewardEth, 0.003))
       .orderBy(desc(flips.createdAt))
       .limit(1)
       .get();

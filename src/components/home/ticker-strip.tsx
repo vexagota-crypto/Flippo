@@ -1,7 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Flame, Trophy, Users, Coins } from "lucide-react";
+import { Flame, Trophy, Users, Coins, Zap } from "lucide-react";
+
+interface RecentFlipItem {
+  id: string;
+  walletAddress: string;
+  call: string;
+  result: string;
+  tierMultiplier: number;
+  rewardEth: number;
+  calledCorrectly: number;
+}
 
 export function TickerStrip() {
   const [stats, setStats] = useState<{
@@ -10,8 +20,9 @@ export function TickerStrip() {
     activePlayersToday: number;
     lastBigWin: { wallet: string; amount: number; time: number } | null;
   } | null>(null);
+  const [recentFlips, setRecentFlips] = useState<RecentFlipItem[]>([]);
 
-  useEffect(() => {
+  const loadData = () => {
     fetch("/api/protocol-stats")
       .then((res) => res.json())
       .then((data) => {
@@ -20,23 +31,38 @@ export function TickerStrip() {
         }
       })
       .catch(() => {});
+
+    fetch("/api/history?limit=5")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.flips)) {
+          setRecentFlips(data.flips);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const items = [
     {
       icon: <Coins className="w-4 h-4 text-[#FFE66B]" />,
       label: "TOTAL FLIPS",
-      value: stats?.totalFlips !== undefined ? stats.totalFlips.toLocaleString() : "...",
+      value: stats?.totalFlips !== undefined ? stats.totalFlips.toLocaleString() : "0",
     },
     {
       icon: <Trophy className="w-4 h-4 text-[#FE2D88]" />,
       label: "ETH PAID OUT",
-      value: stats?.totalEthPaid !== undefined ? `${stats.totalEthPaid} ETH` : "...",
+      value: stats?.totalEthPaid !== undefined ? `${stats.totalEthPaid} ETH` : "0 ETH",
     },
     {
       icon: <Users className="w-4 h-4 text-[#0C73FE]" />,
       label: "ACTIVE PLAYERS TODAY",
-      value: stats?.activePlayersToday !== undefined ? stats.activePlayersToday.toLocaleString() : "...",
+      value: stats?.activePlayersToday !== undefined ? stats.activePlayersToday.toLocaleString() : "0",
     },
     ...(stats?.lastBigWin
       ? [
@@ -47,6 +73,11 @@ export function TickerStrip() {
           },
         ]
       : []),
+    ...recentFlips.map((flip) => ({
+      icon: <Zap className="w-4 h-4 text-[#16A34A]" />,
+      label: `FLIP: ${flip.walletAddress.slice(0, 5)}...${flip.walletAddress.slice(-4)}`,
+      value: `${flip.result.toUpperCase()} (${flip.tierMultiplier}x • +${flip.rewardEth} ETH)`,
+    })),
   ];
 
   return (

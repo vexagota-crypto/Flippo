@@ -74,12 +74,6 @@ sqlite.exec(`
     created_at INTEGER NOT NULL
   );
 
-  CREATE TABLE IF NOT EXISTS practice_flips (
-    id TEXT PRIMARY KEY,
-    wallet_address TEXT NOT NULL,
-    created_at INTEGER NOT NULL
-  );
-
   CREATE TABLE IF NOT EXISTS recycle_guard_flags (
     id TEXT PRIMARY KEY,
     wallet_address TEXT NOT NULL,

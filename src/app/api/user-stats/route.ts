@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     const addr = address.toLowerCase();
-    const [tokenBalance, wallet, summary, paused, tierFlips, lastWhaleFlips, practiceCountToday, lastPractice] =
+    const [tokenBalance, wallet, summary, paused, tierFlips, lastWhaleFlips] =
       await Promise.all([
         getWalletTokenBalance(addr),
         repository.getOrCreateWallet(addr),
@@ -23,17 +23,15 @@ export async function GET(req: NextRequest) {
         repository.isRewardsPaused(),
         repository.getTierFlips(addr),
         repository.getLastTierFlips(addr, 1),
-        repository.getPracticeFlipsCountToday(addr),
-        repository.getLastPracticeFlip(addr),
       ]);
 
     const rawTier = getTierByBalance(tokenBalance);
 
-    // Evaluate hold-time status
+    // Evaluate hold-time status (10 minutes required)
     const now = Date.now();
-    const hoursHeld = (now - wallet.balanceFirstObservedAt) / (1000 * 60 * 60);
-    const holdTimeMet = rawTier.tier === 0 || hoursHeld >= REWARD_CONFIG.MIN_HOLD_HOURS;
-    const hoursRemaining = holdTimeMet ? 0 : Math.max(0, REWARD_CONFIG.MIN_HOLD_HOURS - hoursHeld);
+    const minutesHeld = (now - wallet.balanceFirstObservedAt) / (1000 * 60);
+    const holdTimeMet = rawTier.tier === 0 || minutesHeld >= REWARD_CONFIG.MIN_HOLD_MINUTES;
+    const minutesRemaining = holdTimeMet ? 0 : Math.max(0, Math.ceil(REWARD_CONFIG.MIN_HOLD_MINUTES - minutesHeld));
 
     // Active tier considering hold-time
     const activeTier = holdTimeMet ? rawTier : REWARD_CONFIG.TIERS[0];
@@ -88,13 +86,6 @@ export async function GET(req: NextRequest) {
     }
 
     const isRewardFlipAvailable = tierState === "AVAILABLE" || tierState === "WHALE_READY";
-    const practiceFlipsRemaining = Math.max(0, REWARD_CONFIG.PRACTICE_MAX_PER_DAY - practiceCountToday);
-    const practiceCooldownMs = REWARD_CONFIG.PRACTICE_COOLDOWN_SECONDS * 1000;
-    const practiceCooldownSecondsLeft =
-      lastPractice && now - lastPractice.createdAt < practiceCooldownMs
-        ? Math.ceil((practiceCooldownMs - (now - lastPractice.createdAt)) / 1000)
-        : 0;
-
     // Cooldown check
     let cooldownSecondsLeft = 0;
     if (summary.lastFlipTimestamp) {
@@ -121,23 +112,20 @@ export async function GET(req: NextRequest) {
       tierState,
       isRewardFlipAvailable,
       holdTimeMet,
-      hoursRemaining: Math.round(hoursRemaining * 10) / 10,
+      minutesRemaining,
       whaleCountdownSeconds,
       nextTier: nextTier
         ? {
-            tier: nextTier.tier,
-            name: nextTier.name,
-            minTokens: nextTier.minTokens,
-            multiplier: nextTier.multiplier,
-            tokensNeeded: tokensNeededForNextTier,
-            progressPct: Math.round(tierProgressPct),
-          }
+          tier: nextTier.tier,
+          name: nextTier.name,
+          minTokens: nextTier.minTokens,
+          multiplier: nextTier.multiplier,
+          tokensNeeded: tokensNeededForNextTier,
+          progressPct: Math.round(tierProgressPct),
+        }
         : null,
       flipsToday: summary.flipsToday,
       maxFlipsPerDay: REWARD_CONFIG.MAX_FLIPS_PER_WALLET_PER_DAY,
-      practiceFlipsToday: practiceCountToday,
-      practiceFlipsRemaining,
-      practiceCooldownSecondsLeft,
       rewardsEarnedTodayEth: summary.rewardsEarnedTodayEth,
       walletDailyCapEth: REWARD_CONFIG.WALLET_DAILY_CAP_ETH,
       totalAccruedEth: summary.totalAccruedEth,
