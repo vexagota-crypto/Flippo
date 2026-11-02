@@ -10,8 +10,8 @@ const dbPath =
   (isTest
     ? path.join(process.cwd(), "test.db")
     : process.env.VERCEL
-    ? path.join("/tmp", "flippo.db")
-    : path.join(process.cwd(), "flippo.db"));
+      ? path.join("/tmp", "flippo.db")
+      : path.join(process.cwd(), "flippo.db"));
 
 // Ensure directory exists
 const dbDir = path.dirname(dbPath);

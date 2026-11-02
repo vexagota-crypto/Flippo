@@ -1,5 +1,5 @@
 import { PrivyClient } from "@privy-io/server-auth";
-import { createPublicClient, http, formatEther, parseEther, isAddress } from "viem";
+import { createPublicClient, http, formatEther, parseEther, isAddress, toHex } from "viem";
 import { robinhoodChain } from "@/lib/chains";
 import { env } from "@/lib/env";
 import { repository } from "@/db/repository";
@@ -85,7 +85,7 @@ export async function processPayoutTransaction(params: {
       caip2: `eip155:${env.client.NEXT_PUBLIC_RH_CHAIN_ID}`,
       transaction: {
         to: recipientAddress,
-        value: Number(valueWei),
+        value: toHex(valueWei),
       },
     });
 
