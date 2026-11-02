@@ -4,9 +4,14 @@ import * as schema from "./schema";
 import path from "path";
 import fs from "fs";
 
+const isTest = Boolean(process.env.VITEST || process.env.NODE_ENV === "test");
 const dbPath =
   process.env.DATABASE_URL ||
-  (process.env.VERCEL ? path.join("/tmp", "flippo.db") : path.join(process.cwd(), "flippo.db"));
+  (isTest
+    ? path.join(process.cwd(), "test.db")
+    : process.env.VERCEL
+    ? path.join("/tmp", "flippo.db")
+    : path.join(process.cwd(), "flippo.db"));
 
 // Ensure directory exists
 const dbDir = path.dirname(dbPath);

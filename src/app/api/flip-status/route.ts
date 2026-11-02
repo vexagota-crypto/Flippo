@@ -53,13 +53,11 @@ export async function GET(req: NextRequest) {
     // Tier 1-4 used check
     const usedThisTier = !isWhale && tierFlips.some((tf) => tf.tier === rawTier.tier);
 
-    // Daily budget & treasury checks
+    // Daily budget checks
     const walletDailyCapReached = summary.rewardsEarnedTodayEth >= REWARD_CONFIG.WALLET_DAILY_CAP_ETH;
     const globalDailyBudgetReached = summary.globalRewardsEarnedTodayEth >= REWARD_CONFIG.GLOBAL_DAILY_BUDGET_ETH;
-    const requiredReward = REWARD_CONFIG.BASE_REWARD_ETH * (rawTier.multiplier || 1.0) * REWARD_CONFIG.CALL_BONUS_MULTIPLIER;
-    const treasuryLow = treasuryBalance < requiredReward;
 
-    // Determine Tier State
+    // Determine Tier State (never block gameplay on external server wallet balance)
     let tierState:
       | "BELOW_MIN"
       | "HOLDING_FOR_ELIGIBILITY"
@@ -70,7 +68,7 @@ export async function GET(req: NextRequest) {
       | "BUDGET_REACHED"
       | "TREASURY_LOW" = "AVAILABLE";
 
-    if (paused || treasuryLow) {
+    if (paused) {
       tierState = "TREASURY_LOW";
     } else if (walletDailyCapReached || globalDailyBudgetReached) {
       tierState = "BUDGET_REACHED";
@@ -157,7 +155,7 @@ export async function GET(req: NextRequest) {
       nextTier,
       tierStatuses,
       usedTiers: tierFlips,
-      treasuryLow,
+      treasuryLow: false,
       isRewardsPaused: paused,
       budget: {
         rewardsEarnedTodayEth: summary.rewardsEarnedTodayEth,

@@ -119,7 +119,7 @@ describe("Provable Fairness Verification", () => {
     expect(badVerification.isValid).toBe(false);
 
     // Tamper with server seed
-    const tamperedSeed = serverSeed.replace("a", "b");
+    const tamperedSeed = serverSeed.endsWith("0") ? serverSeed.slice(0, -1) + "1" : serverSeed.slice(0, -1) + "0";
     const badSeedVerification = verifyFlipFairness({
       serverSeed: tamperedSeed,
       seedHash,

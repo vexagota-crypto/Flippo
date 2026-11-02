@@ -621,7 +621,7 @@ export class SQLiteRepository implements IRepository {
           totalEarnedEth: wallets.totalEarnedEth,
         })
         .from(wallets)
-        .where(eq(wallets.isBanned, 0))
+        .where(and(eq(wallets.isBanned, 0), gt(wallets.totalFlips, 0)))
         .orderBy(desc(wallets.bestStreak), desc(wallets.totalFlips))
         .limit(limit);
     }
@@ -635,7 +635,7 @@ export class SQLiteRepository implements IRepository {
           bestStreak: wallets.bestStreak,
         })
         .from(wallets)
-        .where(eq(wallets.isBanned, 0))
+        .where(and(eq(wallets.isBanned, 0), gt(wallets.totalFlips, 0)))
         .orderBy(desc(wallets.totalEarnedEth), desc(wallets.totalFlips))
         .limit(limit);
     }

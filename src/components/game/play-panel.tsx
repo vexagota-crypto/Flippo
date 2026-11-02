@@ -426,15 +426,6 @@ export function PlayPanel({
                 </span>
               </div>
             )}
-
-            {stats?.tierState === "TREASURY_LOW" && (
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-[#FE2D88] shrink-0" />
-                <span className="text-xs font-mono font-bold text-[#0B0B14]">
-                  Treasury rewards currently paused.
-                </span>
-              </div>
-            )}
           </div>
 
           {/* HEADS / TAILS CALL TOGGLE */}

@@ -123,16 +123,7 @@ export async function executeFlip(
     calledCorrectly,
   });
 
-  let finalRewardEth = calc.totalRewardEth;
-
-  // 10. Check live treasury balance if reward > 0
-  if (finalRewardEth > 0) {
-    const treasuryBalance = await getTreasuryLiveBalance();
-    if (treasuryBalance < finalRewardEth) {
-      finalRewardEth = 0;
-      noRewardReason = "TREASURY_INSUFFICIENT";
-    }
-  }
+  const finalRewardEth = calc.totalRewardEth;
 
   const flipRecord = {
     id: flipId,
