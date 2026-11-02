@@ -26,12 +26,12 @@ contract FlippoToken {
 
     /**
      * @notice Deploy Flippo token.
-     * @param initialSupply Whole tokens to mint to deployer (e.g. 100000000 for 100M). If 0, defaults to 100,000,000 FLIPPO.
+     * Automatically mints 100,000,000 FLIPPO tokens to the deployer.
+     * No constructor arguments required — eliminates Remix empty string encoding errors.
      */
-    constructor(uint256 initialSupply) {
+    constructor() {
         owner = msg.sender;
-        uint256 supply = initialSupply > 0 ? initialSupply : 100_000_000;
-        _mint(msg.sender, supply * 10 ** decimals);
+        _mint(msg.sender, 100_000_000 * 10 ** decimals);
     }
 
     /// @dev Mint tokens in wei (exact 18-decimal precision)
